@@ -161,10 +161,10 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             image_name = os.path.basename(image_path).split(".")[0]
             image_path = image_path.replace("colmap_"+str(startime), "colmap_{}".format(j), 1)
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
-            image = Image.open(image_path)
+            image = Image.open(image_path).resize((imageW, imageH))
             if j == startime:
                 # cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=hpposes[sortednamedict[os.path.basename(extr.name)]], hpdirecitons=hpdirecitons,cxr=0.0, cyr=0.0)
-                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=imageW, height=imageH, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
 
             else:
                 cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)

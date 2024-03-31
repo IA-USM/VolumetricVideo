@@ -21,6 +21,7 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 import shutil
+import logging
 
 sys.path.append("./thirdparty/gaussian_splatting")
 
@@ -127,7 +128,7 @@ def gettestparse():
         
     return args, model.extract(args), pipeline.extract(args), multiview
     
-def getcolmapsinglen3d(folder, offset):
+def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True):
     
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
@@ -143,39 +144,42 @@ def getcolmapsinglen3d(folder, offset):
     if not os.path.exists(distortedmodel):
         os.makedirs(distortedmodel)
 
-    featureextract = "colmap feature_extractor --database_path " + dbfile+ " --image_path " + inputimagefolder
+    featureextract = f"{colmap_path} feature_extractor --database_path " + dbfile+ " --image_path " + inputimagefolder
 
     exit_code = os.system(featureextract)
     if exit_code != 0:
         exit(exit_code)
 
 
-    featurematcher = "colmap exhaustive_matcher --database_path " + dbfile
+    featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
     exit_code = os.system(featurematcher)
     if exit_code != 0:
         exit(exit_code)
 
    # threshold is from   https://github.com/google-research/multinerf/blob/5b4d4f64608ec8077222c52fdf814d40acc10bc1/scripts/local_colmap_and_resize.sh#L62
-    triandmap = "colmap point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
-    + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
-   
-    exit_code = os.system(triandmap)
+    if manual:
+        cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
+        + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
+    else:      
+        cmd = (colmap_path + " mapper \
+            --database_path " + dbfile + \
+            "--image_path "  + inputimagefolder + \
+            + "--output_path "  + distortedmodel +\
+            "--Mapper.ba_global_function_tolerance=0.000001")
+    
+    exit_code = os.system(cmd)
     if exit_code != 0:
-       exit(exit_code)
-    print(triandmap)
+        logging.error(f"Failed with code {exit_code}. Exiting.")
+        exit(exit_code)
 
-
-    img_undist_cmd = "colmap" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel  + " --output_path " + folder  \
+    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel  + " --output_path " + folder  \
     + " --output_type COLMAP" 
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:
         exit(exit_code)
     print(img_undist_cmd)
-
-    removeinput = "rm -r " + inputimagefolder
-    exit_code = os.system(removeinput)
-    if exit_code != 0:
-        exit(exit_code)
+    
+    shutil.rmtree(inputimagefolder)
 
     files = os.listdir(folder + "/sparse")
     os.makedirs(folder + "/sparse/0", exist_ok=True)
@@ -190,7 +194,7 @@ def getcolmapsinglen3d(folder, offset):
 
 
 
-def getcolmapsingleimundistort(folder, offset):
+def getcolmapsingleimundistort(folder, offset, colmap_path="colmap"):
     
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
@@ -206,7 +210,7 @@ def getcolmapsingleimundistort(folder, offset):
     if not os.path.exists(distortedmodel):
         os.makedirs(distortedmodel)
 
-    featureextract = "colmap feature_extractor SiftExtraction.max_image_size 6000 --database_path " + dbfile+ " --image_path " + inputimagefolder 
+    featureextract = f"{colmap_path} feature_extractor SiftExtraction.max_image_size 6000 --database_path " + dbfile+ " --image_path " + inputimagefolder 
 
     
     exit_code = os.system(featureextract)
@@ -214,13 +218,13 @@ def getcolmapsingleimundistort(folder, offset):
         exit(exit_code)
     
 
-    featurematcher = "colmap exhaustive_matcher --database_path " + dbfile
+    featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
     exit_code = os.system(featurematcher)
     if exit_code != 0:
         exit(exit_code)
 
 
-    triandmap = "colmap point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
+    triandmap = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
     + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
    
     exit_code = os.system(triandmap)
@@ -231,17 +235,14 @@ def getcolmapsingleimundistort(folder, offset):
 
  
 
-    img_undist_cmd = "colmap" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
+    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
     + " --output_type COLMAP "  # --blank_pixels 1
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:
         exit(exit_code)
     print(img_undist_cmd)
 
-    removeinput = "rm -r " + inputimagefolder
-    exit_code = os.system(removeinput)
-    if exit_code != 0:
-        exit(exit_code)
+    shutil.rmtree(inputimagefolder)
 
     files = os.listdir(folder + "/sparse")
     os.makedirs(folder + "/sparse/0", exist_ok=True)
@@ -256,7 +257,7 @@ def getcolmapsingleimundistort(folder, offset):
 
 
 
-def getcolmapsingleimdistort(folder, offset):
+def getcolmapsingleimdistort(folder, offset, colmap_path="colmap"):
     
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
@@ -272,14 +273,14 @@ def getcolmapsingleimdistort(folder, offset):
     if not os.path.exists(distortedmodel):
         os.makedirs(distortedmodel)
 
-    featureextract = "colmap feature_extractor SiftExtraction.max_image_size 6000 --database_path " + dbfile+ " --image_path " + inputimagefolder 
+    featureextract = f"{colmap_path} feature_extractor SiftExtraction.max_image_size 6000 --database_path " + dbfile+ " --image_path " + inputimagefolder 
     
     exit_code = os.system(featureextract)
     if exit_code != 0:
         exit(exit_code)
     
 
-    featurematcher = "colmap exhaustive_matcher --database_path " + dbfile
+    featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
     exit_code = os.system(featurematcher)
     if exit_code != 0:
         exit(exit_code)
@@ -293,7 +294,7 @@ def getcolmapsingleimdistort(folder, offset):
        exit(exit_code)
     print(triandmap)
 
-    img_undist_cmd = "colmap" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
+    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
     + " --output_type COLMAP "  # --blank_pixels 1
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:
@@ -315,7 +316,7 @@ def getcolmapsingleimdistort(folder, offset):
         shutil.move(source_file, destination_file)
         
 
-def getcolmapsingletechni(folder, offset):
+def getcolmapsingletechni(folder, offset, colmap_path="colmap"):
     
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
@@ -331,7 +332,7 @@ def getcolmapsingletechni(folder, offset):
     if not os.path.exists(distortedmodel):
         os.makedirs(distortedmodel)
 
-    featureextract = "colmap feature_extractor --database_path " + dbfile+ " --image_path " + inputimagefolder 
+    featureextract = f"{colmap_path} feature_extractor --database_path " + dbfile+ " --image_path " + inputimagefolder 
 
     
     exit_code = os.system(featureextract)
@@ -339,13 +340,13 @@ def getcolmapsingletechni(folder, offset):
         exit(exit_code)
     
 
-    featurematcher = "colmap exhaustive_matcher --database_path " + dbfile
+    featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
     exit_code = os.system(featurematcher)
     if exit_code != 0:
         exit(exit_code)
 
 
-    triandmap = "colmap point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
+    triandmap = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
     + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
    
     exit_code = os.system(triandmap)
@@ -353,7 +354,7 @@ def getcolmapsingletechni(folder, offset):
        exit(exit_code)
     print(triandmap)
 
-    img_undist_cmd = "colmap" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
+    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel + " --output_path " + folder  \
     + " --output_type COLMAP "  #
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:

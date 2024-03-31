@@ -34,7 +34,7 @@ from thirdparty.gaussian_splatting.utils.my_utils import posetow2c_matrcs, rotma
 from thirdparty.colmap.pre_colmap import * 
 from thirdparty.gaussian_splatting.helper3dg import getcolmapsinglen3d
 
-
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 def extractframes(videopath):
@@ -76,6 +76,7 @@ def preparecolmapdynerf(folder, offset=0):
         os.mkdir(savedir)
     for folder in folderlist :
         imagepath = os.path.join(folder, str(offset) + ".png")
+        folder = folder.replace("\\", "/")
         imagesavepath = os.path.join(savedir, folder.split("/")[-2] + ".png")
 
         shutil.copy(imagepath, imagesavepath)
@@ -94,6 +95,10 @@ def convertdynerftocolmapdb(path, offset=0):
     if not os.path.exists(manualfolder):
         os.makedirs(manualfolder)
 
+    # guarda info de poses_bounds en manual -> X.txt
+    # crea un database input.db
+    # a ambas le guarda imagenes y camaras, points3d vacio
+    
     savetxt = os.path.join(manualfolder, "images.txt")
     savecamera = os.path.join(manualfolder, "cameras.txt")
     savepoints = os.path.join(manualfolder, "points3D.txt")
@@ -173,6 +178,7 @@ if __name__ == "__main__" :
     parser.add_argument("--videopath", default="", type=str)
     parser.add_argument("--startframe", default=0, type=int)
     parser.add_argument("--endframe", default=50, type=int)
+    parser.add_argument("--colmap_path", default="colmap", type=str)
 
     args = parser.parse_args()
     videopath = args.videopath
@@ -197,10 +203,10 @@ if __name__ == "__main__" :
     
     
     ##### step1
-    print("start extracting 300 frames from videos")
+    print(f"start extracting {endframe-startframe} frames from videos")
     videoslist = glob.glob(videopath + "*.mp4")
-    for v in tqdm.tqdm(videoslist):
-        extractframes(v)
+   # for v in tqdm.tqdm(videoslist):
+        #extractframes(v)
 
     
 
@@ -211,14 +217,14 @@ if __name__ == "__main__" :
 
 
     print("start preparing colmap database input")
-    # # ## step 3 prepare colmap db file 
+    # # ## step 3 prepare colmap db file -> carpeta "manual"
     for offset in range(startframe, endframe):
         convertdynerftocolmapdb(videopath, offset)
 
 
     # ## step 4 run colmap, per frame, if error, reinstall opencv-headless 
     for offset in range(startframe, endframe):
-        getcolmapsinglen3d(videopath, offset)
+        getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path)
 
 
 
