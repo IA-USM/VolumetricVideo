@@ -66,10 +66,13 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
         torch.cuda.empty_cache()
         
         rbfbasefunction = trbfunction
+
+        time_range=[section*section_size, (section+1)*section_size]
         
         # Duration is now "local"
+        # every section -> timestamp [0,1]
         scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section, 
-                      time_range=[section*section_size, (section+1)*section_size])
+                      time_range=time_range)
 
         print("Training section {}".format(section))
 
@@ -120,11 +123,10 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
             traincameralist = scene.getTrainCameras().copy()
             traincamdict = {}
             range_bounds = [section * section_size, (section + 1) * section_size]
-            train_range = range(range_bounds[0], range_bounds[1])
+            #train_range = range(range_bounds[0], range_bounds[1])
             
-            for i in train_range:
+            for i in range(0, section_size):
                 traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/section_size]
-        
         
         if gaussians.ts is None :
             H,W = traincameralist[0].image_height, traincameralist[0].image_width
@@ -142,7 +144,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
         emsstartfromiterations = opt.emsstart   
 
         with torch.no_grad():
-            timeindex = range_bounds[0]
+            timeindex = 0
             viewpointset = traincamdict[timeindex]
             for viewpoint_cam in viewpointset:
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
@@ -182,7 +184,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
 
             if opt.batch > 1:
                 gaussians.zero_gradient_cache()
-                timeindex = randint(range_bounds[0], range_bounds[1]-1)
+                timeindex = randint(0, section_size-1)
                 viewpointset = traincamdict[timeindex]
                 camindex = random.sample(viewpointset, opt.batch)
 

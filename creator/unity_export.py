@@ -49,25 +49,25 @@ def convert_set(gaussians, args, time_range=None, prev_order = None):
     
     time1 = time.time()
 
-    if time_range==None:    
-        step_init = 0
-        step_end = args.duration
-    else:
-        step_init = time_range[0]
-        step_end = time_range[1]
+    
 
-    for idx in tqdm(range(step_init, step_end, args.save_interval)):    
-        save_frame(idx, idx/(args.duration), gaussians, order, save_path, args)
+    if time_range==None:    
+        duration = args.duration
+    else:
+        duration = time_range[1] - time_range[0]        
+
+    for idx in tqdm(range(0, duration, args.save_interval)):    
+        save_frame(idx, idx/duration, gaussians, order, save_path, args)
         
     splat_count = gaussians.get_xyz.cpu().numpy().shape[0]
     chunk_count = (splat_count+args.chunk_size-1) // args.chunk_size
     
-    if (step_end == args.duration):
+    if (time_range[1] == args.duration) or (time_range == None):
         create_one_file(save_path, splat_count=splat_count, chunk_count=chunk_count, frame_time=args.save_interval/args.fps, args=args)
-
+    
     time2= time.time()
 
-    print("FPS:", (step_end- step_init)/(time2-time1))
+    print("FPS:", (duration)/(time2-time1))
 
     return order
 

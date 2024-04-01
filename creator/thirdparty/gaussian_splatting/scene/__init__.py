@@ -34,7 +34,7 @@ class Scene:
         self.loaded_iter = None
         self.gaussians = gaussians
         self.refmodelpath = None
-        self.current_section = 0
+        self.current_section = section_id
 
         if load_iteration:
             if load_iteration == -1:

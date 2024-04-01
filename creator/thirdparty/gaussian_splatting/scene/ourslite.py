@@ -358,6 +358,38 @@ class GaussianModel:
 
         return l
 
+    def save_ply_standard(self, path):
+        mkdir_p(os.path.dirname(path))
+
+        xyz = self._xyz.detach().cpu().numpy()
+        normals = np.zeros_like(xyz)
+        f_dc = self._features_dc.detach().cpu().numpy()
+        #f_rest = self._features_rest.detach().cpu().numpy()
+        opacities = self._opacity.detach().cpu().numpy()
+        scale = self._scaling.detach().cpu().numpy()
+        rotation = self._rotation.detach().cpu().numpy()
+
+
+        trbf_center= self._trbf_center.detach().cpu().numpy()
+
+        trbf_scale = self._trbf_scale.detach().cpu().numpy()
+        motion = self._motion.detach().cpu().numpy()
+
+        omega = self._omega.detach().cpu().numpy()
+
+
+        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+
+        elements = np.empty(xyz.shape[0], dtype=dtype_full)
+        attributes = np.concatenate((xyz, trbf_center, trbf_scale, normals, motion, f_dc, opacities, scale, rotation, omega), axis=1)
+        elements[:] = list(map(tuple, attributes))
+        el = PlyElement.describe(elements, 'vertex')
+        PlyData([el]).write(path)
+
+        #model_fname = path.replace(".ply", ".pt")
+        print(f'Saving model checkpoint to: {path}')
+        # torch.save(self.rgbdecoder.state_dict(), model_fname)
+    
     def save_ply(self, path):
         mkdir_p(os.path.dirname(path))
 

@@ -126,10 +126,10 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             image_path = image_path.replace("colmap_"+str(startime), "colmap_{}".format(j), 1)
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
             image = Image.open(image_path).resize((width, height))
-            if j == startime:
-                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+            if j == (startime+ time_range[0]):
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
             else:
-                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
             cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
@@ -694,16 +694,15 @@ def readColmapSceneInfoImmersive(path, images, eval, llffhold=8, multiview=False
     # if os.path.exists(ply_path):
     #     os.remove(ply_path)
     
-    
-    # if os.path.exists(totalply_path):
-    #     os.remove(totalply_path)
+    #if os.path.exists(totalply_path):
+    #    os.remove(totalply_path)
     
     if not os.path.exists(totalply_path):
         print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
         totalxyz = []
         totalrgb = []
         totaltime = []
-
+        
         takeoffset = 0
         for i in range(starttime, starttime + duration):
             thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)

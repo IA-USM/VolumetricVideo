@@ -51,7 +51,7 @@ def loadCamv2(args, id, cam_info, resolution_scale):
 
     cameradirect = cam_info.hpdirecitons
     camerapose = cam_info.pose 
-     
+    
     if camerapose is not None:
         rays_o, rays_d = 1, cameradirect
     else :
