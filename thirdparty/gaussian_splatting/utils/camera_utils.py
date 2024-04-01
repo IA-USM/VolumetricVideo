@@ -15,8 +15,6 @@ import numpy as np
 
 from utils.general_utils import PILtoTorch
 from utils.graphics_utils import fov2focal
-import torch 
-import os 
 WARNED = False
 
 

@@ -44,21 +44,6 @@ class ParamGroup:
                 setattr(group, arg[0], arg[1])
         return group
 
-    def export_changed_args_to_json(self, args): 
-        defaults = {}
-        for arg in vars(args).items():
-            try:
-                if arg[0] in vars(self) or ("_" + arg[0]) in vars(self):
-                    defaultvalue = getattr(self, arg[0])
-                    # defaults[ arg[0] ] = defaultvalue
-                    if defaultvalue != arg[1]:
-                        defaults[arg[0]] = arg[1]
-            except:
-                pass 
-               
-        return defaults
-
-
 class ModelParams(ParamGroup): 
     def __init__(self, parser, sentinel=False):
         self.sh_degree = 3
@@ -72,8 +57,7 @@ class ModelParams(ParamGroup):
         self.eval = False
         self.model = "gmodel" # 
         self.loader = "colmap" #
-        
-
+        self.sections = True
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -111,11 +95,11 @@ class OptimizationParams(ParamGroup):
         self.rotation_lr = 0.001
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
-        self.densification_interval = 100
+        self.densification_interval = 100 # 300?
         self.opacity_reset_interval = 3_000
         self.opacity_reset_at = 10000
         self.densify_from_iter = 500
-        self.densify_until_iter = 9000
+        self.densify_until_iter = 6000
         self.densify_grad_threshold = 0.0002
         self.rgb_lr = 0.0001
         self.desicnt = 6
@@ -143,7 +127,10 @@ class OptimizationParams(ParamGroup):
         self.prevpath = "1"
         self.loadall = 0
         self.removescale = 5
-        self.gtmask = 0 # 0 means not train with mask for undistorted gt image; 1 means 
+
+        self.section_size = 50
+        self.section_iterations = 5000
+
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):

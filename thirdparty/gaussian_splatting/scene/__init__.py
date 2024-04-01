@@ -20,11 +20,12 @@ from PIL import Image
 from utils.camera_utils import camera_to_JSON, cameraList_from_camInfosv2, cameraList_from_camInfosv2nogt
 from helper_train import recordpointshelper, getfisheyemapper
 import torch 
+
 class Scene:
 
     # gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, resolution_scales=[1.0], multiview=False,duration=50.0, loader="colmap"):
+    def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, resolution_scales=[1.0], multiview=False, duration=50.0, loader="colmap"):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -32,7 +33,7 @@ class Scene:
         self.loaded_iter = None
         self.gaussians = gaussians
         self.refmodelpath = None
-    
+        self.current_section = 0
 
         if load_iteration:
             if load_iteration == -1:
@@ -44,11 +45,11 @@ class Scene:
         self.train_cameras = {}
         self.test_cameras = {}
         raydict = {}
-
-
+        
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, multiview, duration=duration)
-        
+        elif loader == "dynerf" or loader == "dynerfvalid": # colmapvalid only for testing
+            scene_info = sceneLoadTypeCallbacks["Dynerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "technicolor" or loader == "technicolorvalid" :
             scene_info = sceneLoadTypeCallbacks["Technicolor"](args.source_path, args.images, args.eval, multiview, duration=duration)
         
@@ -62,6 +63,8 @@ class Scene:
         else:
             assert False, "Could not recognize scene type!"
 
+        self.scene_info = scene_info
+        
         if not self.loaded_iter:
             with open(scene_info.ply_path, 'rb') as src_file, open(os.path.join(self.model_path, "input.ply") , 'wb') as dest_file:
                 dest_file.write(src_file.read())
@@ -81,7 +84,7 @@ class Scene:
             random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
 
  
-
+        self.point_cloud = scene_info.point_cloud
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
 
@@ -150,8 +153,29 @@ class Scene:
                                                            "point_cloud.ply"))
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+    
+    def oneup_section(self):
+        self.current_section += 1
+        self.model_path = self.model_path+ "_"+ str(self.current_section)
+        self.refmodelpath = self.model_path+ "_"+ str(self.current_section)
+        os.makedirs(self.model_path, exist_ok=True)
 
-
+        if not self.loaded_iter:
+            with open(self.scene_info.ply_path, 'rb') as src_file, open(os.path.join(self.model_path, "input.ply") , 'wb') as dest_file:
+                dest_file.write(src_file.read())
+            json_cams = []
+            camlist = []
+            if self.scene_info.test_cameras:
+                camlist.extend(self.scene_info.test_cameras)
+            if self.scene_info.train_cameras:
+                camlist.extend(self.scene_info.train_cameras)
+            for id, cam in enumerate(camlist):
+                json_cams.append(camera_to_JSON(id, cam))
+            with open(os.path.join(self.model_path, "cameras.json"), 'w') as file:
+                json.dump(json_cams, file, indent=2)
+        
+        self.loaded_iter = None
+    
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))

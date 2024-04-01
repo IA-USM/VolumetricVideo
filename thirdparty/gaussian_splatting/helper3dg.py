@@ -94,7 +94,7 @@ def gettestparse():
     parser = ArgumentParser(description="Testing script parameters")
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
-
+    
     parser.add_argument("--test_iteration", default=-1, type=int)
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
@@ -106,7 +106,32 @@ def gettestparse():
     parser.add_argument("--configpath", type=str, default = "1")
 
     parser.add_argument("--quiet", action="store_true")
+
+    # Unity conversion
+    parser.add_argument("--save_interval", default=1, type=int)
+    parser.add_argument("--chunk-size", type=int, default=256)
+    parser.add_argument("--fps", type=int, default=20)
+    
+    parser.add_argument("--pos-format", type=str, default="Norm11")
+    parser.add_argument("--scale_format", type=str, default="Norm11")
+    parser.add_argument("--sh_format", type=str, default="Norm6")
+    parser.add_argument("--col_format", type=str, default="Norm8x4")
+
+    parser.add_argument("--save_name", type=str, default="scene.v3d")
+    parser.add_argument("--dynamic_others", action="store_true", default=False)
+    parser.add_argument("--dynamic_color", action="store_true", default=True)
+    parser.add_argument("--include_shs", action="store_true", default=False)
+    
+    parser.add_argument("--pos_offset", type=list, default=[0,0,0.35])
+    parser.add_argument("--rot_offset", type=list, default=[0,180,0])
+    parser.add_argument("--scale", type=list, default=[0.55,0.55,0.55])
+    
+    parser.add_argument("--audio_path", type=str)
+
+    parser.add_argument("--unity_export_path", type=str, default ="")
+
     args = get_combined_args(parser)
+
     print("Rendering " + args.model_path)
     # configpath
     safe_state(args.quiet)

@@ -1,0 +1,1 @@
+python train_sections.py -s D:/datasets/plenoptic/flame_steak/colmap_0 -m output/flame --config configs/custom/main.json --eval

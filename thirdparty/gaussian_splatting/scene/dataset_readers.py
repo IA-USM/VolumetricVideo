@@ -76,7 +76,66 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, duration=50):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, duration=50, section_size=25):
+    cam_infos = []
+    totalcamname = []
+    for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
+        extr = cam_extrinsics[key]
+        intr = cam_intrinsics[extr.camera_id]
+        totalcamname.append(extr.name)
+    
+    sortedtotalcamelist =  natsort.natsorted(totalcamname)
+    sortednamedict = {}
+    for i in  range(len(sortedtotalcamelist)):
+        sortednamedict[sortedtotalcamelist[i]] = i # map each cam with a number
+
+    for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
+        sys.stdout.write('\r')
+        # the exact output you're looking for:
+        sys.stdout.write("Reading camera {}/{}".format(idx+1, len(cam_extrinsics)))
+        sys.stdout.flush()
+
+        extr = cam_extrinsics[key]
+
+        intr = cam_intrinsics[extr.camera_id]
+        height = intr.height
+        width = intr.width
+
+        uid = intr.id
+        R = np.transpose(qvec2rotmat(extr.qvec))
+        T = np.array(extr.tvec)
+
+        if intr.model=="SIMPLE_PINHOLE":
+            focal_length_x = intr.params[0]
+            FovY = focal2fov(focal_length_x, height)
+            FovX = focal2fov(focal_length_x, width)
+        elif intr.model=="PINHOLE":
+            focal_length_x = intr.params[0]
+            focal_length_y = intr.params[1]
+            FovY = focal2fov(focal_length_y, height)
+            FovX = focal2fov(focal_length_x, width)
+        else:
+            assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
+
+        width = width // 2
+        height = height // 2
+
+        for j in range(startime, startime+ int(duration)):
+            image_path = os.path.join(images_folder, os.path.basename(extr.name))
+            image_name = os.path.basename(image_path).split(".")[0]
+            image_path = image_path.replace("colmap_"+str(startime), "colmap_{}".format(j), 1)
+            assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
+            image = Image.open(image_path).resize((width, height))
+            if j == startime:
+                # cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=hpposes[sortednamedict[os.path.basename(extr.name)]], hpdirecitons=hpdirecitons,cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+            else:
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
+            cam_infos.append(cam_info)
+    sys.stdout.write('\n')
+    return cam_infos
+
+def readColmapCamerasDynerf(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, duration=50):
     cam_infos = []
 
     # pose in llff. pipeline by hypereel 
@@ -120,7 +179,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
     sortednamedict = {}
     for i in  range(len(sortedtotalcamelist)):
         sortednamedict[sortedtotalcamelist[i]] = i # map each cam with a number
-     
 
     for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
         sys.stdout.write('\r')
@@ -129,9 +187,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
         sys.stdout.flush()
 
         extr = cam_extrinsics[key]
-
-
-
 
         intr = cam_intrinsics[extr.camera_id]
         height = intr.height
@@ -152,9 +207,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             FovX = focal2fov(focal_length_x, width)
         else:
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
-
-
-
        
         for j in range(startime, startime+ int(duration)):
             image_path = os.path.join(images_folder, os.path.basename(extr.name))
@@ -762,7 +814,7 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
 
 
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duration=50):
+def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duration=50, section_size=25):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -786,6 +838,91 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, duratio
     
 
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), near=near, far=far, startime=starttime, duration=duration)
+    cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
+     
+
+    if eval:
+        train_cam_infos =  cam_infos[duration:] 
+        test_cam_infos = cam_infos[:duration]
+        uniquecheck = []
+        for cam_info in test_cam_infos:
+            if cam_info.image_name not in uniquecheck:
+                uniquecheck.append(cam_info.image_name)
+        assert len(uniquecheck) == 1 
+        
+        sanitycheck = []
+        for cam_info in train_cam_infos:
+            if cam_info.image_name not in sanitycheck:
+                sanitycheck.append(cam_info.image_name)
+        for testname in uniquecheck:
+            assert testname not in sanitycheck
+    else:
+        train_cam_infos = cam_infos
+        test_cam_infos = cam_infos[:2] #dummy
+
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+
+    ply_path = os.path.join(path, "sparse/0/points3D.ply")
+    bin_path = os.path.join(path, "sparse/0/points3D.bin")
+    txt_path = os.path.join(path, "sparse/0/points3D.txt")
+    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
+    
+
+    
+    if not os.path.exists(totalply_path):
+        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+        totalxyz = []
+        totalrgb = []
+        totaltime = []
+        for i in range(starttime, starttime + duration):
+            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_binary(thisbin_path)
+            totalxyz.append(xyz)
+            totalrgb.append(rgb)
+            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
+        xyz = np.concatenate(totalxyz, axis=0)
+        rgb = np.concatenate(totalrgb, axis=0)
+        totaltime = np.concatenate(totaltime, axis=0)
+        assert xyz.shape[0] == rgb.shape[0]  
+        xyzt =np.concatenate( (xyz, totaltime), axis=1)     
+        storePly(totalply_path, xyzt, rgb)
+    try:
+        pcd = fetchPly(totalply_path)
+    except:
+        pcd = None
+
+    scene_info = SceneInfo(point_cloud=pcd,
+                           train_cameras=train_cam_infos,
+                           test_cameras=test_cam_infos,
+                           nerf_normalization=nerf_normalization,
+                           ply_path=totalply_path)
+    return scene_info
+
+
+def readColmapSceneInfoDynerf(path, images, eval, llffhold=8, multiview=False, duration=50):
+    try:
+        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
+        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
+        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
+        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+    except:
+        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.txt")
+        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
+        cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
+        cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+
+    reading_dir = "images" if images == None else images
+    parentdir = os.path.dirname(path)
+
+    near = 0.01
+    far = 100
+
+    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
+    assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
+    starttime = int(starttime)
+    
+
+    cam_infos_unsorted = readColmapCamerasDynerf(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), near=near, far=far, startime=starttime, duration=duration)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
      
 
@@ -1193,6 +1330,7 @@ def readColmapCamerasImmersivev2(cam_extrinsics, cam_intrinsics, images_folder, 
     
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
+    "Dynerf": readColmapSceneInfoDynerf,
     "Immersive": readColmapSceneInfoImmersive,
     "Colmapmv": readColmapSceneInfoMv,
     "Blender" : readNerfSyntheticInfo, 
