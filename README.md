@@ -6,6 +6,8 @@ Aca se ira guardando todo lo relacionado al proyecto de video volumetrico. Esta 
 
 **creator**: Sistema para crear los videos. Basado en [SpacetimeGaussians](https://github.com/oppo-us-research/SpacetimeGaussians).
 
+**editor**: Sistema para editarlos manualmente.
+
 **notebooks**: Para aprender los conceptos detras de como funciona.
 
 **pruning**: Sistema para hacer los videos mas livianos.

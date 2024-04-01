@@ -10,6 +10,7 @@
     "rdpip": "train_ours_lite",
     "section_size": 50,
     "section_iterations": 5000,
-    "densify_grad_threshold": 0.0003,
-    "max_init_points": 10000
+    "densify_grad_threshold": 0.0002,
+    "max_init_points": 15000,
+    "iterations": 3000
   }

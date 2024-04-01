@@ -118,7 +118,6 @@ class Scene:
         for cam in self.train_cameras[resolution_scale]:
             if cam.image_name not in raydict and cam.rayo is not None:
                 # rays_o, rays_d = 1, cameradirect
-                
                 raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1).cuda() # 1 x 6 x H x W
         for cam in self.test_cameras[resolution_scale]:
             if cam.image_name not in raydict and cam.rayo is not None:
