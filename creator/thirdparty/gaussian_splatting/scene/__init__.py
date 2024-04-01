@@ -48,7 +48,8 @@ class Scene:
         raydict = {}
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, multiview, time_range=time_range)
+            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
+                                                          multiview, time_range=time_range, max_init_points=args.max_init_points)
         elif loader == "dynerf" or loader == "dynerfvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Dynerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "technicolor" or loader == "technicolorvalid" :
@@ -145,14 +146,14 @@ class Scene:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
             for cam in self.test_cameras[resolution_scale]:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
-
-       
-        if self.loaded_iter :
+        
+        # Load the point cloud, only section 0 can modify the point cloud
+        if self.loaded_iter and section_id == 0:
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
-        else:
+        elif section_id == 0:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
     
     def save(self, iteration):

@@ -64,9 +64,6 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
 
     for section in range(0, total_sections):
         torch.cuda.empty_cache()
-
-        if section != 0:
-            gaussians.forget_learning()
         
         rbfbasefunction = trbfunction
         

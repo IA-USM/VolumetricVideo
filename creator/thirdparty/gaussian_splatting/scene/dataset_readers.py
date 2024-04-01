@@ -813,7 +813,7 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
 
 
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50]):
+def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], max_init_points=-1):
 
     duration = time_range[1]- time_range[0]
 
@@ -875,7 +875,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         totalxyz = []
         totalrgb = []
         totaltime = []
-        for i in range(starttime, starttime + duration):
+        for i in range(starttime + time_range[0], starttime + time_range[1]):
             thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
             xyz, rgb, _ = read_points3D_binary(thisbin_path)
             totalxyz.append(xyz)
@@ -884,8 +884,17 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         xyz = np.concatenate(totalxyz, axis=0)
         rgb = np.concatenate(totalrgb, axis=0)
         totaltime = np.concatenate(totaltime, axis=0)
+
+        # downsample points to max_init_points
+        if max_init_points > 0 and xyz.shape[0] > max_init_points:
+            print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
+            idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
+            xyz = xyz[idx]
+            rgb = rgb[idx]
+            totaltime = totaltime[idx]
+
         assert xyz.shape[0] == rgb.shape[0]  
-        xyzt =np.concatenate( (xyz, totaltime), axis=1)     
+        xyzt =np.concatenate( (xyz, totaltime), axis=1)
         storePly(totalply_path, xyzt, rgb)
     try:
         pcd = fetchPly(totalply_path)

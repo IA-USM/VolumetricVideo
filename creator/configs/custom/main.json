@@ -5,9 +5,11 @@
     "preprocesspoints": 3,
     "test_iteration": 12000,
     "densify": 2,
-    "densification_interval": 200,
+    "densification_interval": 250,
     "duration": 300,
     "rdpip": "train_ours_lite",
     "section_size": 50,
-    "section_iterations": 5000
+    "section_iterations": 5000,
+    "densify_grad_threshold": 0.0003,
+    "max_init_points": 10000
   }

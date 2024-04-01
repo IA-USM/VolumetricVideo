@@ -58,6 +58,7 @@ class ModelParams(ParamGroup):
         self.model = "gmodel" # 
         self.loader = "colmap" #
         self.sections = True
+        self.max_init_points = 10000
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
