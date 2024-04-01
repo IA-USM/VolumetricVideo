@@ -1,0 +1,13 @@
+{
+    "resolution": 2,
+    "model": "ours_lite",
+    "scaling_lr": 0.003,
+    "preprocesspoints": 3,
+    "test_iteration": 12000,
+    "densify": 2,
+    "densification_interval": 200,
+    "duration": 300,
+    "rdpip": "train_ours_lite",
+    "section_size": 50,
+    "section_iterations": 5000
+  }
