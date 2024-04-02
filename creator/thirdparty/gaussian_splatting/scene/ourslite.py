@@ -371,7 +371,7 @@ class GaussianModel:
 
 
         trbf_center= self._trbf_center.detach().cpu().numpy()
-
+        
         trbf_scale = self._trbf_scale.detach().cpu().numpy()
         motion = self._motion.detach().cpu().numpy()
 

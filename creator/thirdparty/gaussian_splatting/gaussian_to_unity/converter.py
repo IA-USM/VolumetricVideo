@@ -5,7 +5,7 @@ import torch
 
 # Reorder the points using Morton order. Returns the indexes of the points in the new order.
 def get_order(means3d: torch.tensor) -> np.array:
-
+    
     # Calculate bounds
     bounds_min, bounds_max = calculate_bounds(means3d.cpu().numpy())
     
@@ -29,7 +29,7 @@ def gaussian_timestep_to_unity(means3d: torch.tensor,
     #test_xyz = pc.get_xyz[order_indexes].cpu().numpy()
     timestart = tm.time()
     means3D_sorted = means3d[order_indexes].cpu().numpy().copy()
-
+    
     
     if debug:
         print("linealization time:", tm.time()-timestart)

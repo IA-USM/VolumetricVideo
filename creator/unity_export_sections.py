@@ -11,23 +11,23 @@ if __name__ == "__main__":
     model_extract.loader = "immersiveud"
     model_extract.resolution = 2
 
-    all_sections = glob.glob(args.model_path + "_*")
-    all_sections.append(args.model_path)
-
+    all_sections = glob.glob(args.model_path[:-2] + "_*")
+    
     args, model_extract, pp_extract, multiview =gettestparse()
     args.scale = [4,-4,4]
     args.pos_offset = [0,0,0]
     args.rot_offset = [0,0,0]
     args.save_interval = 2
-    args.save_name = "birth.v3d"
+    args.save_name = "test.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     
     for idx, section in enumerate(sorted(all_sections)):
+        
         time_range = [idx*args.section_size, (idx+1)*args.section_size]
 
         print(f" ----- EXPORTING SECTION {idx}-----")
         print(f"Time range: {time_range}")
-
+        
         iteration = searchForMaxIteration(os.path.join(section, "point_cloud"))
         
         model_extract.model_path = section

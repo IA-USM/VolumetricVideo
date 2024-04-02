@@ -1,1 +1,5 @@
+# Entrenar en secciones
 python train_sections.py -s D:/datasets/plenoptic/flame_steak/colmap_0 -m output/flame --config configs/custom/main.json
+
+# Exportar las secciones a Unity
+python unity_export_sections.py -m output/flame_0 --config configs/custom/main.json

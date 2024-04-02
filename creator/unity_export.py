@@ -49,15 +49,14 @@ def convert_set(gaussians, args, time_range=None, prev_order = None):
     
     time1 = time.time()
 
-    
-
     if time_range==None:    
         duration = args.duration
     else:
         duration = time_range[1] - time_range[0]        
-
-    for idx in tqdm(range(0, duration, args.save_interval)):    
-        save_frame(idx, idx/duration, gaussians, order, save_path, args)
+    
+    for idx in tqdm(range(0, duration, args.save_interval)):
+        id_frame = time_range[0] + idx
+        save_frame(id_frame, idx/duration, gaussians, order, save_path, args)
         
     splat_count = gaussians.get_xyz.cpu().numpy().shape[0]
     chunk_count = (splat_count+args.chunk_size-1) // args.chunk_size

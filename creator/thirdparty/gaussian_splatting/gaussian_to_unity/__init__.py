@@ -43,7 +43,7 @@ def save_frame(idx, timestamp, pc : GaussianModel, order_indexes, basepath="outp
     
     rotations_final = pc.get_rotation(tforpoly)
     colors_final = pc.get_features(tforpoly)
-
+    
     if idx==0:
         gaussian_static_data_to_unity(pc.get_xyz.shape[0], scales_final, rotations_final, colors_final, 
                                       shs, opacities_final, order_indexes, args= args, basepath=basepath)

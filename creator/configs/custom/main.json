@@ -11,6 +11,6 @@
     "section_size": 50,
     "section_iterations": 6000,
     "densify_grad_threshold": 0.0002,
-    "max_init_points": 15000,
-    "iterations": 25000
+    "max_init_points": 20000,
+    "iterations": 27000
   }

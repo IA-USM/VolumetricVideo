@@ -395,6 +395,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
 
         # Save gaussians at the end of each section
         print("\n[ITER {}] Saving final Gaussians for section {}".format(iteration, section))
+        print("Final Gaussian Count: ", gaussians._xyz.shape[0])
         scene.save(iteration)
     
 if __name__ == "__main__":
