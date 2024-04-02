@@ -397,6 +397,11 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
         print("\n[ITER {}] Saving final Gaussians for section {}".format(iteration, section))
         print("Final Gaussian Count: ", gaussians._xyz.shape[0])
         scene.save(iteration)
+
+        # Start fresh for the next section
+        gaussians.optimizer.zero_grad(set_to_none = True)#
+        torch.cuda.empty_cache()
+        gaussians.zero_gradient_cache()
     
 if __name__ == "__main__":
     args, lp_extract, op_extract, pp_extract = getparser()
