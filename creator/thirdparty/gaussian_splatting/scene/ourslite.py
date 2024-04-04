@@ -868,6 +868,8 @@ class GaussianModel:
         self.computedopacity =self.opacity_activation(self._opacity)
         self.computedscales = torch.exp(self._scaling) # change not very large
 
+        self.max_radii2D = torch.zeros((self._xyz.shape[0]), device="cuda")
+
     def replace_tensor_to_optimizer(self, tensor, name):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -1142,24 +1144,28 @@ class GaussianModel:
         torch.cuda.empty_cache()
 
 
-    def densify_pruneclone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
-        #print("before", torch.amax(self.get_scaling))
+    def densify_pruneclone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1, init_round=True):
+        if not init_round:
+            # structure should be somewhat good already from previous rounds
+            max_grad = max_grad * 1000
+        
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
         
-        print("befre clone", self._xyz.shape[0])
+        print("before clone", self._xyz.shape[0])
         self.densify_and_clone(grads, max_grad, extent)
         print("after clone", self._xyz.shape[0])
 
         self.densify_and_splitv2(grads, max_grad, extent, 2)
         print("after split", self._xyz.shape[0])
 
-        prune_mask = (self.get_opacity < min_opacity).squeeze()
-        if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size  
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+        if (init_round):
+            prune_mask = (self.get_opacity < min_opacity).squeeze()
+            if max_screen_size:
+                big_points_vs = self.max_radii2D > max_screen_size  
+                big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
 
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+                prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
         torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):

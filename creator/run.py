@@ -8,7 +8,7 @@ total_duration = 300
 section_size = 50
 sections = total_duration // section_size
 
-for i in range(0, sections):
+for i in range(1, sections):
     cmd = f"python train_section.py -s {source} -m {model} --config {config} --section_idx {i}"
     print(cmd)
     os.system(cmd)

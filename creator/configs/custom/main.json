@@ -3,14 +3,14 @@
 	"model": "ours_lite",
 	"scaling_lr": 0.003,
 	"preprocesspoints": 3,
-	"test_iteration": 27000,
+	"test_iteration": 10000,
 	"densify": 2,
 	"densification_interval": 250,
 	"duration": 50,
 	"rdpip": "train_ours_lite",
 	"section_size": 50,
-	"section_iterations": 27000,
+	"section_iterations": 10000,
 	"densify_grad_threshold": 0.0002,
 	"max_init_points": 20000,
-	"iterations": 27000
+	"iterations": 10000
 }

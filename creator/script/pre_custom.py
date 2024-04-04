@@ -38,18 +38,22 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 def extractframes(videopath, startframe=0, endframe=300, w=1080):
     video = ffmpeg.input(videopath)
     resize = video.filter('scale', w, -1)
-    resize.output(videopath.replace(".mp4", "") + "/%d.png", start_number=startframe, end_number=endframe).run()
+    outpath = videopath.replace(".mp4", "")
+    os.makedirs(outpath, exist_ok=True)
+
+    resize.output(os.path.join(outpath,"%d.png")).run()
 
 def preparecolmapfolders(folder, videos_list, offset=0):
     savedir = os.path.join(folder, "colmap_" + str(offset))
     os.makedirs(savedir, exist_ok=True)
     savedir = os.path.join(savedir, "input")
     os.makedirs(savedir, exist_ok=True)
+    cameras = [video.replace(".mp4", "") for video in videos_list]
 
-    for video in videos_list:
-        imagepath = os.path.join(folder, str(offset) + ".png")
+    for cam in cameras:
+        imagepath = os.path.join(folder, cam, str(offset) + ".png")
         folder = folder.replace("\\", "/")
-        imagesavepath = os.path.join(savedir, Path(video).stem + ".png")
+        imagesavepath = os.path.join(savedir, Path(cam).stem + ".png")
 
         shutil.copy(imagepath, imagesavepath)
 
@@ -57,8 +61,8 @@ if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
  
     parser.add_argument("--videopath", default="", type=str)
-    parser.add_argument("--startframe", default=0, type=int)
-    parser.add_argument("--endframe", default=50, type=int)
+    parser.add_argument("--startframe", default=1, type=int)
+    parser.add_argument("--endframe", default=60, type=int)
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=1080, type=int)
 
