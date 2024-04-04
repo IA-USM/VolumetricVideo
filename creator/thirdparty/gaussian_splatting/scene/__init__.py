@@ -22,14 +22,16 @@ from helper_train import recordpointshelper, getfisheyemapper
 import torch 
 
 class Scene:
-
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=[0,50], section_id=0, loader="colmap"):
+                 resolution_scales=[1.0], multiview=False, time_range=[0,50], section_id=0, loader="colmap", duration=-1):
         """b
         :param path: Path to colmap scene main folder.
         """
-        self.model_path = args.model_path + "_" + str(section_id)
+        if duration != -1:
+            time_range = [0, duration]
+        
+        self.model_path = args.model_path #+ "_" + str(section_id)
         os.makedirs(self.model_path, exist_ok=True)
         self.loaded_iter = None
         self.gaussians = gaussians
@@ -154,6 +156,13 @@ class Scene:
                                                            "point_cloud.ply"))
         elif section_id == 0:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+        else:
+            # Load previous ply
+            load_path = os.path.join(args.model_path + "_" + str(section_id-1), "point_cloud")
+            self.gaussians.load_ply(os.path.join(args.model_path + "_" + str(section_id-1),
+                                                           "point_cloud",
+                                                           "iteration_" + str(searchForMaxIteration(load_path)),
+                                                           "point_cloud.ply"))
     
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))

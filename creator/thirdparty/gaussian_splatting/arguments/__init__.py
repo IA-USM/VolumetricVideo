@@ -128,7 +128,7 @@ class OptimizationParams(ParamGroup):
         self.prevpath = "1"
         self.loadall = 0
         self.removescale = 5
-
+        
         self.section_size = 50
         self.section_iterations = 5000
 

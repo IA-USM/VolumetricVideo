@@ -51,6 +51,7 @@ def getparser():
     parser.add_argument("--rgbfunction", type=str, default = "rgbv1")
     parser.add_argument("--rdpip", type=str, default = "v2")
     parser.add_argument("--configpath", type=str, default = "None")
+    parser.add_argument("--section_idx", type=int, default = 0)
 
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)

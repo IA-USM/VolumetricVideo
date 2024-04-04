@@ -56,14 +56,19 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
     print("use model {}".format(dataset.model))
     GaussianModel = getmodel(dataset.model) # gmodel, gmodelrgbonly
     
-    gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
-    gaussians.trbfslinit = -1*opt.trbfslinit # 
-    gaussians.preprocesspoints = opt.preprocesspoints 
-    gaussians.addsphpointsscale = opt.addsphpointsscale 
-    gaussians.raystart = opt.raystart
+    prev_state = None
 
     for section in range(0, total_sections):
         torch.cuda.empty_cache()
+
+        gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
+        gaussians.trbfslinit = -1*opt.trbfslinit # 
+        gaussians.preprocesspoints = opt.preprocesspoints 
+        gaussians.addsphpointsscale = opt.addsphpointsscale 
+        gaussians.raystart = opt.raystart
+
+        if (prev_state != None):
+            gaussians.restore2(prev_state)
         
         rbfbasefunction = trbfunction
 
@@ -80,7 +85,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
             cfg_log_f.write(str(Namespace(**vars(args))))
         
         init_round = section == 0
-
+        
         currentxyz = gaussians._xyz 
         maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
         minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
@@ -121,10 +126,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
 
         if opt.batch > 1:
             traincameralist = scene.getTrainCameras().copy()
-            traincamdict = {}
-            range_bounds = [section * section_size, (section + 1) * section_size]
-            #train_range = range(range_bounds[0], range_bounds[1])
-            
+            traincamdict = {}            
             for i in range(0, section_size):
                 traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/section_size]
         
@@ -398,10 +400,7 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
         print("Final Gaussian Count: ", gaussians._xyz.shape[0])
         scene.save(iteration)
 
-        # Start fresh for the next section
-        gaussians.optimizer.zero_grad(set_to_none = True)#
-        torch.cuda.empty_cache()
-        gaussians.zero_gradient_cache()
+        del(gaussians)
     
 if __name__ == "__main__":
     args, lp_extract, op_extract, pp_extract = getparser()

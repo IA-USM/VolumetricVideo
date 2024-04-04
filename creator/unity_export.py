@@ -62,7 +62,7 @@ def convert_set(gaussians, args, time_range=None, prev_order = None):
     splat_count = gaussians.get_xyz.cpu().numpy().shape[0]
     chunk_count = (splat_count+args.chunk_size-1) // args.chunk_size
     
-    if (time_range[1] == 250) or (time_range == None):
+    if (time_range[1] == 100) or (time_range == None):
         create_one_file(save_path, splat_count=splat_count, chunk_count=chunk_count, frame_time=args.save_interval/args.fps, args=args)
     
     time2= time.time()
