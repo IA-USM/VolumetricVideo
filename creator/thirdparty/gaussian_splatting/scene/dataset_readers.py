@@ -15,7 +15,7 @@ from PIL import Image
 from typing import NamedTuple
 from scene.colmap_loader import read_extrinsics_text, read_intrinsics_text, qvec2rotmat, \
     read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text
-from utils.graphics_utils import getWorld2View2, focal2fov, fov2focal
+from utils.graphics_utils import getWorld2View2, focal2fov, fov2focal, getWorld2View
 import numpy as np
 import json
 from pathlib import Path
@@ -76,7 +76,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, time_range=[0,50]):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, time_range=[0,50], offset=np.array([.0, .0, -2])):
     cam_infos = []
     totalcamname = []
     for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
@@ -88,7 +88,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
     sortednamedict = {}
     for i in  range(len(sortedtotalcamelist)):
         sortednamedict[sortedtotalcamelist[i]] = i # map each cam with a number
-
+    
     for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
         sys.stdout.write('\r')
         # the exact output you're looking for:
@@ -104,6 +104,10 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
         uid = intr.id
         R = np.transpose(qvec2rotmat(extr.qvec))
         T = np.array(extr.tvec)
+        
+        W2V = getWorld2View2(R,T, translate=offset)
+        V2W = np.linalg.inv(W2V)
+        T = W2V[:3, 3]
 
         if intr.model=="SIMPLE_PINHOLE":
             focal_length_x = intr.params[0]
@@ -117,15 +121,16 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
         else:
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
-        width = width // 2
-        height = height // 2
+        #width = width // 2
+        #height = height // 2
+
         duration = time_range[1] - time_range[0]
         for j in range(startime+ time_range[0], startime+ time_range[1]):
             image_path = os.path.join(images_folder, os.path.basename(extr.name))
             image_name = os.path.basename(image_path).split(".")[0]
             image_path = image_path.replace("colmap_"+str(startime), "colmap_{}".format(j), 1)
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
-            image = Image.open(image_path).resize((width, height))
+            image = Image.open(image_path)
             if j == (startime+ time_range[0]):
                 cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
             else:
@@ -813,8 +818,12 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
 
 
 def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], max_init_points=-1):
-
     duration = time_range[1]- time_range[0]
+
+    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
+    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
+    assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
+    starttime = int(starttime)
 
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
@@ -826,18 +835,54 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+    
+    #if not os.path.exists(totalply_path):
+    if True:
+        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+        totalxyz = []
+        totalrgb = []
+        totaltime = []
+        for i in range(starttime + time_range[0], starttime + time_range[1]):
+            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_binary(thisbin_path)
+            totalxyz.append(xyz)
+            totalrgb.append(rgb)
+            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
+        xyz = np.concatenate(totalxyz, axis=0)
+        rgb = np.concatenate(totalrgb, axis=0)
+        totaltime = np.concatenate(totaltime, axis=0)
+
+        # downsample points to max_init_points
+        if max_init_points > 0 and xyz.shape[0] > max_init_points:
+            print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
+            idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
+            xyz = xyz[idx]
+            rgb = rgb[idx]
+            totaltime = totaltime[idx]
+        min_z_points = np.min(xyz[:, 2])
+        min_z_camera = np.min([np.min(cam_extrinsics[key].tvec[2]) for key in cam_extrinsics])
+        min_z = min(min_z_points, min_z_camera)
+
+        if min_z < 0:
+            print("Shifting everything in z axis by {}".format(-min_z))
+            xyz[:, 2] -= min_z
+
+        assert xyz.shape[0] == rgb.shape[0]  
+        xyzt =np.concatenate( (xyz, totaltime), axis=1)
+        storePly(totalply_path, xyzt, rgb)
+    try:
+        pcd = fetchPly(totalply_path)
+    except:
+        pcd = None
 
     reading_dir = "images" if images == None else images
 
-    near = 0.01
+    near = 0.001
     far = 100
-
-    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
-    assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
-    starttime = int(starttime)
     
-
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), near=near, far=far, startime=starttime, time_range=time_range)
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, 
+                                           images_folder=os.path.join(path, reading_dir), near=near, 
+                                           far=far, startime=starttime, time_range=time_range, offset=np.array([.0, .0, -min_z]))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
      
 
@@ -861,44 +906,6 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         test_cam_infos = cam_infos[:2] #dummy
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
-
-    ply_path = os.path.join(path, "sparse/0/points3D.ply")
-    bin_path = os.path.join(path, "sparse/0/points3D.bin")
-    txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
-    
-
-    
-    if not os.path.exists(totalply_path):
-        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
-        totalxyz = []
-        totalrgb = []
-        totaltime = []
-        for i in range(starttime + time_range[0], starttime + time_range[1]):
-            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
-            xyz, rgb, _ = read_points3D_binary(thisbin_path)
-            totalxyz.append(xyz)
-            totalrgb.append(rgb)
-            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
-        xyz = np.concatenate(totalxyz, axis=0)
-        rgb = np.concatenate(totalrgb, axis=0)
-        totaltime = np.concatenate(totaltime, axis=0)
-
-        # downsample points to max_init_points
-        if max_init_points > 0 and xyz.shape[0] > max_init_points:
-            print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
-            idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
-            xyz = xyz[idx]
-            rgb = rgb[idx]
-            totaltime = totaltime[idx]
-
-        assert xyz.shape[0] == rgb.shape[0]  
-        xyzt =np.concatenate( (xyz, totaltime), axis=1)
-        storePly(totalply_path, xyzt, rgb)
-    try:
-        pcd = fetchPly(totalply_path)
-    except:
-        pcd = None
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,

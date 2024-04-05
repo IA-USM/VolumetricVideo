@@ -150,14 +150,14 @@ def gettestparse():
         
     return args, model.extract(args), pipeline.extract(args), multiview
     
-def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True):
+def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startframe=0):
     
     folder = os.path.join(folder, "colmap_" + str(offset))
     assert os.path.exists(folder)
 
     dbfile = os.path.join(folder, "input.db")
     inputimagefolder = os.path.join(folder, "input")
-    distortedmodel = os.path.join(folder, "distorted/sparse")
+    distortedmodel = os.path.join(folder, "distorted/sparse/0/")
     step2model = os.path.join(folder, "tmp")
     if not os.path.exists(step2model):
         os.makedirs(step2model)
@@ -178,21 +178,43 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True):
     if exit_code != 0:
         exit(exit_code)
 
-   # threshold is from   https://github.com/google-research/multinerf/blob/5b4d4f64608ec8077222c52fdf814d40acc10bc1/scripts/local_colmap_and_resize.sh#L62
     if manual:
+        # Copy reconstruction from first frame
+        source_folder = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), "sparse/0")
+        if not os.path.exists(manualinputfolder):
+            shutil.copytree(source_folder, manualinputfolder)
+
+        if(os.path.exists(os.path.join(manualinputfolder, "points3D.bin"))):
+            os.remove(os.path.join(manualinputfolder, "points3D.bin"))
+            newPoints3D = os.path.join(manualinputfolder, "points3D.bin") # create empty points3D.bin
+            with open(newPoints3D, 'w') as f:
+                f.write("")
+        
+        #input_db = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), "input.db")
+        #shutil.copy(input_db, dbfile)
+
         cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
         + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
-    else:      
+    else:
         cmd = (colmap_path + " mapper \
             --database_path " + dbfile + \
-            "--image_path "  + inputimagefolder + \
-            + "--output_path "  + distortedmodel +\
-            "--Mapper.ba_global_function_tolerance=0.000001")
+            " --image_path "  + inputimagefolder + \
+            " --output_path "  + distortedmodel +\
+            " --Mapper.ba_global_function_tolerance=0.000001")
     
     exit_code = os.system(cmd)
     if exit_code != 0:
         logging.error(f"Failed with code {exit_code}. Exiting.")
         exit(exit_code)
+    
+    # move everything in "0" to the root of the sparse folder
+    mapping_path = os.path.join(distortedmodel)
+
+   # for file in os.listdir(mapping_path):
+   #     source_file = os.path.join(mapping_path, file)
+   #     destination_file = os.path.join(distortedmodel, file)
+  #      shutil.move(source_file, destination_file)
+  #  os.rmdir(mapping_path)
 
     img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel  + " --output_path " + folder  \
     + " --output_type COLMAP" 

@@ -41,7 +41,7 @@ def extractframes(videopath, startframe=0, endframe=300, w=1080):
     outpath = videopath.replace(".mp4", "")
     os.makedirs(outpath, exist_ok=True)
 
-    resize.output(os.path.join(outpath,"%d.png")).run()
+    video.output(os.path.join(outpath,"%d.png")).run()
 
 def preparecolmapfolders(folder, videos_list, offset=0):
     savedir = os.path.join(folder, "colmap_" + str(offset))
@@ -87,13 +87,17 @@ if __name__ == "__main__" :
     print(f"start extracting {endframe-startframe} frames from videos")
     videoslist = glob.glob(videopath + "*.mp4")
     for v in tqdm.tqdm(videoslist):
-        extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
+      #  extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
+        pass
 
     # 2- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
         preparecolmapfolders(videopath, videoslist, offset)
+    
+    # 3 - Run mapper on the first frame
+    getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
 
-    # 3- Run colmap per-frame
-    for offset in range(startframe, endframe):
-        getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path, manual=False)
+    # 4- Run colmap per-frame, use the poses from first frame for all
+    for offset in range(40, endframe):
+        getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)

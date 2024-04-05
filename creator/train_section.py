@@ -126,8 +126,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         gaussians.ts = torch.ones(1,1,H,W).cuda()
 
     scene.recordpoints(0, "start training")
-
-                                                            
+                                    
     flagems = 0  
     emscnt = 0
     lossdiect = {}
@@ -143,23 +142,18 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
             
             _, depthH, depthW = render_pkg["depth"].shape
-            borderH = int(depthH/2)
-            borderW = int(depthW/2)
-
-            midh =  int(viewpoint_cam.image_height/2)
-            midw =  int(viewpoint_cam.image_width/2)
             
             depth = render_pkg["depth"]
-            slectemask = depth != 15.0 
+            slectemask = depth != 15.0 #why?
 
             validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
             depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
     
     if init_round and (densify == 1 or  densify == 2): 
         zmask = gaussians._xyz[:,2] < 4.5  
-        gaussians.prune_points(zmask) 
+        gaussians.prune_points(zmask)
         torch.cuda.empty_cache()
-
+    
     selectedlength = 2
     lasterems = 0 
     
@@ -184,8 +178,12 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             for i in range(opt.batch):
                 viewpoint_cam = camindex[i]
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
-                image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg) 
+                image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
+                
+                if iteration%500 == 0:
+                    torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{iteration}.png"))
+                    torchvision.utils.save_image(image, os.path.join("debug",  f"render_{iteration}.png"))
                 
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
@@ -204,7 +202,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 
                 loss.backward()
                 gaussians.cache_gradient()
-                gaussians.optimizer.zero_grad(set_to_none = True)# 
+                gaussians.optimizer.zero_grad(set_to_none = True)
 
             if flagems == 1 and len(lossdiect.keys()) == len(viewpointset):
                 # sort dict by value
@@ -245,7 +243,8 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 print("\n[ITER {}] Saving initial Gaussians".format(iteration))
                 scene.save(iteration)
             
-            opt.densify_until_iter = 1400
+            if not init_round:
+                opt.densify_until_iter = 1400
 
             # Densification and pruning here
             if iteration < opt.densify_until_iter :
@@ -365,8 +364,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     mediandepth = diff_sorted[mediandepth]
 
                     depth = torch.where(depth>mediandepth, depth,mediandepth )
-
-                
+                    
                     totalNnewpoints = gaussians.addgaussians(badindices, viewpoint_cam, depth, gt_image, numperay=opt.farray,ratioend=opt.rayends,  depthmax=depthdict[viewpoint_cam.image_name], shuffle=(opt.shuffleems != 0))
 
                     gt_image = gt_image * errormask
