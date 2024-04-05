@@ -43,19 +43,33 @@ def extractframes(videopath, startframe=0, endframe=300, w=1080):
 
     video.output(os.path.join(outpath,"%d.png")).run()
 
-def preparecolmapfolders(folder, videos_list, offset=0):
+def preparecolmapfolders(folder, offset=0, extension=".png"):
     savedir = os.path.join(folder, "colmap_" + str(offset))
     os.makedirs(savedir, exist_ok=True)
     savedir = os.path.join(savedir, "input")
     os.makedirs(savedir, exist_ok=True)
-    cameras = [video.replace(".mp4", "") for video in videos_list]
+    cameras = [f for f in os.listdir(folder) if os.path.isdir(os.path.join(folder, f))]
 
     for cam in cameras:
-        imagepath = os.path.join(folder, cam, str(offset) + ".png")
+        if "colmap" in cam:
+            continue
+        imagepath = os.path.join(folder, cam, str(offset) + extension)
         folder = folder.replace("\\", "/")
-        imagesavepath = os.path.join(savedir, Path(cam).stem + ".png")
+        imagesavepath = os.path.join(savedir, cam + extension)
 
         shutil.copy(imagepath, imagesavepath)
+
+def rename_frames(folder, elements):
+    for element in elements:
+        frames = glob.glob(os.path.join(folder, element, "*.png"))
+        frames += glob.glob(os.path.join(folder, element, "*.jpg"))
+        frames.sort()
+
+        for i, frame in enumerate(frames):
+            newname = os.path.join(folder, element, str(i) + frame[-4:])
+            if frame == newname:
+                continue
+            os.rename(frame, newname)
 
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
@@ -77,27 +91,40 @@ if __name__ == "__main__" :
         print("start frame must smaller than end frame")
         quit()
     if not os.path.exists(videopath):
-        print("path not exist")
+        print("path does not exist")
         quit()
     
     if not videopath.endswith("/"):
         videopath = videopath + "/"
     
-    # 1- Extract frames
-    print(f"start extracting {endframe-startframe} frames from videos")
+    # 1- Prepare frames
     videoslist = glob.glob(videopath + "*.mp4")
-    for v in tqdm.tqdm(videoslist):
-      #  extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
-        pass
+    extension = ".png"
+    if len(videoslist) == 0:
+        elements = os.listdir(videopath)
+        images_sample = glob.glob(os.path.join(videopath, elements[0], "*.png"))
+        images_sample += glob.glob(os.path.join(videopath, elements[0], "*.jpg"))
+        if len(images_sample) == 0:
+            print("no videos or images found")
+            quit()
+        print("found images, renaming them to 0.png, 1.png, ...")
+        #rename_frames(videopath, elements)
+        extension = images_sample[0][-4:]
+
+    else:
+        for v in tqdm.tqdm(videoslist):
+            print(f"start extracting {endframe-startframe} frames from videos")
+            extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
+            pass
 
     # 2- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
-        preparecolmapfolders(videopath, videoslist, offset)
+        preparecolmapfolders(videopath, offset, extension=extension)
     
     # 3 - Run mapper on the first frame
     getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
 
     # 4- Run colmap per-frame, use the poses from first frame for all
-    for offset in range(40, endframe):
+    for offset in range(startframe, endframe):
         getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)

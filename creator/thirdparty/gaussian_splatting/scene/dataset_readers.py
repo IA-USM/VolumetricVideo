@@ -859,6 +859,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
             xyz = xyz[idx]
             rgb = rgb[idx]
             totaltime = totaltime[idx]
+            
         min_z_points = np.min(xyz[:, 2])
         min_z_camera = np.min([np.min(cam_extrinsics[key].tvec[2]) for key in cam_extrinsics])
         min_z = min(min_z_points, min_z_camera)
@@ -916,6 +917,38 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
 
 
 def readColmapSceneInfoDynerf(path, images, eval, llffhold=8, multiview=False, duration=50):
+    
+    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
+    assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
+    starttime = int(starttime)
+    
+    ply_path = os.path.join(path, "sparse/0/points3D.ply")
+    bin_path = os.path.join(path, "sparse/0/points3D.bin")
+    txt_path = os.path.join(path, "sparse/0/points3D.txt")
+    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
+    
+    if not os.path.exists(totalply_path):
+        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+        totalxyz = []
+        totalrgb = []
+        totaltime = []
+        for i in range(starttime, starttime + duration):
+            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_binary(thisbin_path)
+            totalxyz.append(xyz)
+            totalrgb.append(rgb)
+            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
+        xyz = np.concatenate(totalxyz, axis=0)
+        rgb = np.concatenate(totalrgb, axis=0)
+        totaltime = np.concatenate(totaltime, axis=0)
+        assert xyz.shape[0] == rgb.shape[0]  
+        xyzt =np.concatenate( (xyz, totaltime), axis=1)     
+        storePly(totalply_path, xyzt, rgb)
+    try:
+        pcd = fetchPly(totalply_path)
+    except:
+        pcd = None
+    
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -932,10 +965,6 @@ def readColmapSceneInfoDynerf(path, images, eval, llffhold=8, multiview=False, d
 
     near = 0.01
     far = 100
-
-    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
-    assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
-    starttime = int(starttime)
     
 
     cam_infos_unsorted = readColmapCamerasDynerf(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), near=near, far=far, startime=starttime, duration=duration)
@@ -962,35 +991,6 @@ def readColmapSceneInfoDynerf(path, images, eval, llffhold=8, multiview=False, d
         test_cam_infos = cam_infos[:2] #dummy
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
-
-    ply_path = os.path.join(path, "sparse/0/points3D.ply")
-    bin_path = os.path.join(path, "sparse/0/points3D.bin")
-    txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
-    
-
-    
-    if not os.path.exists(totalply_path):
-        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
-        totalxyz = []
-        totalrgb = []
-        totaltime = []
-        for i in range(starttime, starttime + duration):
-            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
-            xyz, rgb, _ = read_points3D_binary(thisbin_path)
-            totalxyz.append(xyz)
-            totalrgb.append(rgb)
-            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
-        xyz = np.concatenate(totalxyz, axis=0)
-        rgb = np.concatenate(totalrgb, axis=0)
-        totaltime = np.concatenate(totaltime, axis=0)
-        assert xyz.shape[0] == rgb.shape[0]  
-        xyzt =np.concatenate( (xyz, totaltime), axis=1)     
-        storePly(totalply_path, xyzt, rgb)
-    try:
-        pcd = fetchPly(totalply_path)
-    except:
-        pcd = None
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,
