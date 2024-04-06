@@ -145,9 +145,9 @@ def gettestparse():
         
     return args, model.extract(args), pipeline.extract(args), multiview
     
-def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startframe=0):
+def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, startframe=0):
     
-    folder = os.path.join(folder, "colmap_" + str(offset))
+    folder = os.path.join(output_path, "colmap_" + str(offset))
     assert os.path.exists(folder)
 
     dbfile = os.path.join(folder, "input.db")

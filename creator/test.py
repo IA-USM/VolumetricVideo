@@ -228,7 +228,6 @@ def run_test(dataset : ModelParams, iteration : int, pipeline : PipelineParams, 
             render_setnogt(dataset.model_path, "mv", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip)
 
 if __name__ == "__main__":
-    
 
     args, model_extract, pp_extract, multiview =gettestparse()
     run_test(model_extract, args.test_iteration, pp_extract, args.skip_train, args.skip_test, multiview, args.duration,  rgbfunction=args.rgbfunction, rdpip=args.rdpip, loader=args.valloader)

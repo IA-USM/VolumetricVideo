@@ -208,8 +208,6 @@ if __name__ == "__main__" :
    # for v in tqdm.tqdm(videoslist):
         #extractframes(v)
 
-    
-
     # # ## step2 prepare colmap input 
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
