@@ -1,0 +1,6 @@
+plyfile
+tqdm
+natsort
+scikit-image
+-e thirdparty/gaussian_splatting/submodules/gaussian_rasterization_ch9
+-e thirdparty/gaussian_splatting/submodules/simple-knn

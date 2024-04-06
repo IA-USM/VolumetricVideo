@@ -116,7 +116,7 @@ if __name__ == "__main__" :
             print(f"start extracting {endframe-startframe} frames from videos")
             extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
             pass
-
+    
     # 2- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
@@ -126,5 +126,5 @@ if __name__ == "__main__" :
     getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
 
     # 4- Run colmap per-frame, use the poses from first frame for all
-    for offset in range(startframe, endframe):
+    for offset in range(startframe+1, endframe):
         getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)

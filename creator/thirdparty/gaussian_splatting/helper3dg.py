@@ -157,7 +157,7 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
 
     dbfile = os.path.join(folder, "input.db")
     inputimagefolder = os.path.join(folder, "input")
-    distortedmodel = os.path.join(folder, "distorted/sparse/0/")
+    distortedmodel = os.path.join(folder, "distorted", "sparse")
     step2model = os.path.join(folder, "tmp")
     if not os.path.exists(step2model):
         os.makedirs(step2model)
@@ -180,7 +180,7 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
 
     if manual:
         # Copy reconstruction from first frame
-        source_folder = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), "sparse/0")
+        source_folder = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), os.path.join("sparse","0"))
         if not os.path.exists(manualinputfolder):
             shutil.copytree(source_folder, manualinputfolder)
 
@@ -189,11 +189,8 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
             newPoints3D = os.path.join(manualinputfolder, "points3D.bin") # create empty points3D.bin
             with open(newPoints3D, 'w') as f:
                 f.write("")
-        
-        #input_db = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), "input.db")
-        #shutil.copy(input_db, dbfile)
 
-        cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + distortedmodel \
+        cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + os.path.join(distortedmodel,"0") \
         + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
     else:
         cmd = (colmap_path + " mapper \
@@ -206,36 +203,21 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
     if exit_code != 0:
         logging.error(f"Failed with code {exit_code}. Exiting.")
         exit(exit_code)
-    
-    # move everything in "0" to the root of the sparse folder
-    mapping_path = os.path.join(distortedmodel)
 
-   # for file in os.listdir(mapping_path):
-   #     source_file = os.path.join(mapping_path, file)
-   #     destination_file = os.path.join(distortedmodel, file)
-  #      shutil.move(source_file, destination_file)
-  #  os.rmdir(mapping_path)
-
-    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + distortedmodel  + " --output_path " + folder  \
+    img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + os.path.join(distortedmodel,"0")  + " --output_path " + folder  \
     + " --output_type COLMAP" 
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:
-        exit(exit_code)
-    print(img_undist_cmd)
+        exit(exit_code)    
     
-    shutil.rmtree(inputimagefolder)
-
-    files = os.listdir(folder + "/sparse")
-    os.makedirs(folder + "/sparse/0", exist_ok=True)
+    files = os.listdir(os.path.join(folder, "sparse"))
+    os.makedirs(os.path.join(folder, "sparse", "0"), exist_ok=True)
     for file in files:
-        if file == '0':
+        if file == "0":
             continue
         source_file = os.path.join(folder, "sparse", file)
         destination_file = os.path.join(folder, "sparse", "0", file)
         shutil.move(source_file, destination_file)
-
-
-
 
 
 def getcolmapsingleimundistort(folder, offset, colmap_path="colmap"):
