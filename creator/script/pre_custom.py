@@ -53,13 +53,13 @@ def preparecolmapfolders(offset=0, extension=".png", output_path="dataset"):
     os.makedirs(savedir, exist_ok=True)
     savedir = os.path.join(savedir, "input")
     os.makedirs(savedir, exist_ok=True)
-    cameras = [f for f in os.listdir(output_path) if os.path.isdir(os.path.join(folder, f))]
+    cameras = [f for f in os.listdir(output_path) if os.path.isdir(os.path.join(output_path, f))]
 
     for cam in cameras:
         if "colmap" in cam:
             continue
-        imagepath = os.path.join(folder, cam, str(offset) + extension)
-        folder = folder.replace("\\", "/")
+        imagepath = os.path.join(output_path, cam, str(offset) + extension)
+        output_path = output_path.replace("\\", "/")
         imagesavepath = os.path.join(savedir, cam + extension)
 
         shutil.copy(imagepath, imagesavepath)
@@ -95,16 +95,16 @@ def resize_frames(folder, elements, w=-1):
 if __name__ == "__main__" :
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", "-i", default="", type=str)
+    parser.add_argument("--source", "-s", default="", type=str)
     parser.add_argument("--output", "-o", default="dataset", type=str)
     parser.add_argument("--startframe", default=1, type=int)
     parser.add_argument("--endframe", default=60, type=int)
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=-1, type=int)
     parser.add_argument("--export_depth", default=False, type=bool)
-
+    
     args = parser.parse_args()
-    videopath = args.input
+    videopath = args.source
 
     startframe = args.startframe
     endframe = args.endframe
@@ -141,7 +141,7 @@ if __name__ == "__main__" :
             copy_frames(videopath, elements, output_path)
         else:
             print("found images, resizing and exporting them to 0.png, 1.png, ...")
-            resize_frames(videopath, elements, w=args.resize_width)
+            #resize_frames(videopath, elements, w=args.resize_width)
         extension = images_sample[0][-4:]
 
     else:
@@ -159,7 +159,7 @@ if __name__ == "__main__" :
         preparecolmapfolders(offset, extension=extension, output_path=output_path)
     
     # 3 - Run mapper on the first frame
-    getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
+    getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False)
 
     # 4- Run colmap per-frame, use the poses from first frame for all
     for offset in range(startframe+1, endframe):
