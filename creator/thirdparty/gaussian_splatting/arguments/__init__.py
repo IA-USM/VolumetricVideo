@@ -59,6 +59,7 @@ class ModelParams(ParamGroup):
         self.loader = "colmap" #
         self.sections = True
         self.max_init_points = 10000
+        self.load2gpu_on_the_fly = True
 
         super().__init__(parser, "Loading Parameters", sentinel)
 

@@ -177,11 +177,14 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
 
             for i in range(opt.batch):
                 viewpoint_cam = camindex[i]
+                if dataset.load2gpu_on_the_fly:
+                    viewpoint_cam.load2device()
+                    
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
                 image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
                 
-                if iteration%500 == 0:
+                if iteration% 1000 == 0:
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{iteration}.png"))
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{iteration}.png"))
                 
@@ -201,6 +204,10 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                         ssimdict[viewpoint_cam.image_name] = ssim(image.clone().detach(), gt_image.clone().detach()).item()
                 
                 loss.backward()
+
+                if dataset.load2gpu_on_the_fly:
+                    viewpoint_cam.load2device("cpu")
+                
                 gaussians.cache_gradient()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 
@@ -279,7 +286,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     patchesmusk = patchessum  >  kh * kh * 0.85
                     patchesmusk = patchesmusk.unsqueeze(2).unsqueeze(3).repeat(1,1,kh,kh).float()
                     patches = dummypatch * patchesmusk
-
+                    
                     depth = render_pkg["depth"]
                     depth = depth.squeeze(0)
                     idealdepthh, idealdepthw = int(depth.shape[0] / dh  + 1) * kw, int(depth.shape[1] / dw + 1) * kw # compute padding for depth
