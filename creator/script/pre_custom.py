@@ -21,7 +21,6 @@
 # SOFTWARE.
 
 import os 
-import cv2 
 import glob 
 import tqdm 
 import shutil
@@ -30,7 +29,6 @@ import argparse
 sys.path.append(".")
 from thirdparty.colmap.pre_colmap import * 
 from thirdparty.gaussian_splatting.helper3dg import getcolmapsinglen3d
-from pathlib import Path
 import ffmpeg
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -79,6 +77,7 @@ if __name__ == "__main__" :
     parser.add_argument("--endframe", default=60, type=int)
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=1080, type=int)
+    parser.add_argument("--export_depth", default=False, type=bool)
 
     args = parser.parse_args()
     videopath = args.videopath
@@ -117,6 +116,9 @@ if __name__ == "__main__" :
             extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width)
             pass
     
+    if args.export_depth:
+        pass
+
     # 2- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
@@ -126,5 +128,6 @@ if __name__ == "__main__" :
     #getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
 
     # 4- Run colmap per-frame, use the poses from first frame for all
+    startframe = 21
     for offset in range(startframe+1, endframe):
         getcolmapsinglen3d(videopath, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)

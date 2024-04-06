@@ -11,15 +11,10 @@
 import os
 import torch
 from random import randint
-import random 
 import sys 
-import uuid
-import time 
 import json
 
-import numpy as np 
-import cv2
-from tqdm import tqdm
+
 import shutil
 import logging
 
@@ -209,7 +204,7 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
     + " --output_type COLMAP" 
     exit_code = os.system(img_undist_cmd)
     if exit_code != 0:
-        exit(exit_code)    
+        exit(exit_code)
     
     files = os.listdir(os.path.join(folder, "sparse"))
     os.makedirs(os.path.join(folder, "sparse", "0"), exist_ok=True)
