@@ -190,6 +190,7 @@ def getcolmapsinglen3d(folder, offset, colmap_path="colmap", manual=True, startf
             with open(newPoints3D, 'w') as f:
                 f.write("")
 
+        os.makedirs(os.path.join(distortedmodel, "0"), exist_ok=True)
         cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + os.path.join(distortedmodel,"0") \
         + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
     else:

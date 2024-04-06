@@ -123,7 +123,7 @@ if __name__ == "__main__" :
         preparecolmapfolders(videopath, offset, extension=extension)
     
     # 3 - Run mapper on the first frame
-    getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
+    #getcolmapsinglen3d(videopath, startframe, colmap_path=args.colmap_path, manual=False)
 
     # 4- Run colmap per-frame, use the poses from first frame for all
     for offset in range(startframe+1, endframe):
