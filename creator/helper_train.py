@@ -223,7 +223,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
         return flag
     
     elif densify == 2: # n3d 
-        if iteration < opt.densify_until_iter :
+        if iteration < opt.densify_until_iter:
             if iteration ==  8001 : # 8001
                 omegamask = gaussians.zero_omegabymotion() #
                 gaussians.omegamask  = omegamask
@@ -239,11 +239,20 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold, init_round=init_round)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
-                elif init_round:
+                else:
                     prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
+                    
+                    # only prune new points
+                    if not init_round:
+                        new_points_mask = torch.zeros(gaussians.get_xyz.shape[0], device="cuda")
+                        new_points_mask[gaussians.original_point_count:] = 1
+                        new_points_mask = new_points_mask.bool()
+                        prune_mask = torch.logical_and(prune_mask, new_points_mask) 
+
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
+                    
             if iteration % 3000 == 0 :
                 gaussians.reset_opacity()
         else:

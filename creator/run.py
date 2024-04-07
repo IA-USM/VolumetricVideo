@@ -2,10 +2,10 @@ import sys
 import os
 
 source = "/media/pablo/Nuevo_vol/capturas/cocina/output/colmap_1"
-model = "output/huevo"
+model = "output/huevos_frag/sec"
 config = "configs/custom/main.json"
 total_duration = 299
-section_size = 60
+section_size = 10
 sections = total_duration // section_size
 
 for i in range(0, sections-1):

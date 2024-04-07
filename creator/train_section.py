@@ -76,11 +76,13 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         cfg_log_f.write(str(Namespace(**vars(args))))
     
     init_round = section_idx == 0
-    
-    currentxyz = gaussians._xyz 
+    #init_round = True
+
+    currentxyz = gaussians._xyz
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
     minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
     
+    gaussians.original_point_count = currentxyz.shape[0]
 
     if os.path.exists(opt.prevpath):
         print("load from " + opt.prevpath)
@@ -91,6 +93,13 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     minbounds = [minx, miny, minz]
 
     gaussians.training_setup(opt)
+
+    # Add new points from the current section
+    if not init_round:
+        starttime = os.path.basename(args.source_path).split("_")[1] # colmap_0, 
+        assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"            
+        pcd = scene.create_pcd_from_bins(args.source_path, starttime, time_range)
+        gaussians.append_from_pcd(pcd)
     
     numchannel = 9 
 
@@ -153,10 +162,12 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         zmask = gaussians._xyz[:,2] < 4.5  
         gaussians.prune_points(zmask)
         torch.cuda.empty_cache()
+    else:
+        opt.desicnt = 3 # Limit the number of densification rounds
     
     selectedlength = 2
-    lasterems = 0 
-    
+    lasterems = 0
+
     for iteration in range(first_iter, iterations + 1):        
         if init_round and iteration ==  opt.emsstart:
             flagems = 1 # start ems
@@ -185,8 +196,8 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 gt_image = viewpoint_cam.original_image.float().cuda()
                 
                 if iteration% 1000 == 0:
-                    torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{iteration}.png"))
-                    torchvision.utils.save_image(image, os.path.join("debug",  f"render_{iteration}.png"))
+                    torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))
+                    torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
                 
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
@@ -250,17 +261,16 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 print("\n[ITER {}] Saving initial Gaussians".format(iteration))
                 scene.save(iteration)
             
-            if not init_round:
-                opt.densify_until_iter = 1400
-
             # Densification and pruning here
-            if iteration < opt.densify_until_iter :
+            if iteration < opt.densify_until_iter:
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
-            flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds, init_round=True)
+            flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, 
+                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds, init_round=init_round)
             
             # guided sampling step
             if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #["camera_0002"] :#selectviews :  #["camera_0002"]:
+                print("ems start")
                 selectviews.pop(viewpoint_cam.image_name) # remove sampled cameras
                 emscnt += 1
                 lasterems = iteration
