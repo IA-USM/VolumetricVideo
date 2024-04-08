@@ -64,12 +64,10 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     rbfbasefunction = trbfunction
 
     time_range=[section_idx*section_size, (section_idx+1)*section_size]
-    #init_round = section_idx == 0
-    init_round = True
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
-                    time_range=time_range, init_round=init_round, duration = duration)
+                    time_range=time_range, duration = duration)
 
     print("Training section {}".format(section_idx))
 
@@ -93,14 +91,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     minbounds = [minx, miny, minz]
 
     gaussians.training_setup(opt)
-
-    # Add new points from the current section
-    if not init_round:
-        starttime = os.path.basename(args.source_path).split("_")[1] # colmap_0, 
-        assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"          
-        pcd = scene.create_pcd_from_bins(args.source_path, starttime, time_range)
-        #gaussians.append_from_pcd(pcd)
-       # gaussians.create_from_pcd(pcd, scene.cameras_extent)
     
     numchannel = 9 
 
@@ -160,18 +150,16 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
             depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
     
-    if init_round and (densify == 1 or  densify == 2): 
+    if (densify == 1 or  densify == 2): 
         zmask = gaussians._xyz[:,2] < 4.5  
         gaussians.prune_points(zmask)
         torch.cuda.empty_cache()
-    else:
-        opt.desicnt = 2 # Limit the number of densification rounds
     
     selectedlength = 2
     lasterems = 0
 
     for iteration in range(first_iter, iterations + 1):        
-        if init_round and iteration ==  opt.emsstart:
+        if iteration ==  opt.emsstart:
             flagems = 1 # start ems
 
         iter_start.record()
@@ -271,7 +259,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
             flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, 
-                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds, init_round=init_round)
+                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds)
             
             # guided sampling step
             if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #["camera_0002"] :#selectviews :  #["camera_0002"]:
