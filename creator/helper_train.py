@@ -205,10 +205,12 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 else:
                     if iteration < 7000 and init_round: # defalt 7000. 
                         prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
+                        prune_mask = torch.logical_or((gaussians.get_scaling < 0.5).squeeze(), prune_mask)
                         gaussians.prune_points(prune_mask)
                         torch.cuda.empty_cache()
                         scene.recordpoints(iteration, "addionally prune_mask")
             if iteration % 3000 == 0 :
+                print("reset opacity")
                 gaussians.reset_opacity()
         else:
             freezweightsbymasknounsqueeze(gaussians, ["_omega"], gaussians.omegamask)
@@ -254,6 +256,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     scene.recordpoints(iteration, "addionally prune_mask")
                     
             if iteration % 3000 == 0 :
+                print("reset opacity")
                 gaussians.reset_opacity()
         else:
             if iteration % 1000 == 500 and init_round:

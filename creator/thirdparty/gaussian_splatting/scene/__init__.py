@@ -160,13 +160,18 @@ class Scene:
         elif init_round:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
         else:
+            # Create pcd from current sec
+            starttime = os.path.basename(args.source_path).split("_")[1]
+            starttime = int(starttime)
+            point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+            self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
             # Load previous ply
-            load_path = os.path.join(args.model_path + "_" + str(section_id-1), "point_cloud")
-            self.gaussians.load_ply(os.path.join(args.model_path + "_" + str(section_id-1),
-                                                           "point_cloud",
-                                                           "iteration_" + str(searchForMaxIteration(load_path)),
-                                                           "point_cloud.ply"))
-
+            #load_path = os.path.join(args.model_path + "_" + str(section_id-1), "point_cloud")
+            #self.gaussians.load_ply(os.path.join(args.model_path + "_" + str(section_id-1),
+           #                                                "point_cloud",
+            #                                               "iteration_" + str(searchForMaxIteration(load_path)),
+           #                                                "point_cloud.ply"))
+#
     def create_pcd_from_bins(self, source_path, starttime, time_range):
 
         totalxyz = []

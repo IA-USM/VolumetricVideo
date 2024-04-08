@@ -64,8 +64,8 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     rbfbasefunction = trbfunction
 
     time_range=[section_idx*section_size, (section_idx+1)*section_size]
-    init_round = section_idx == 0
-    #init_round = True
+    #init_round = section_idx == 0
+    init_round = True
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
@@ -97,7 +97,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     # Add new points from the current section
     if not init_round:
         starttime = os.path.basename(args.source_path).split("_")[1] # colmap_0, 
-        assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"            
+        assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"          
         pcd = scene.create_pcd_from_bins(args.source_path, starttime, time_range)
         #gaussians.append_from_pcd(pcd)
        # gaussians.create_from_pcd(pcd, scene.cameras_extent)
