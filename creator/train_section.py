@@ -43,7 +43,7 @@ from argparse import Namespace
 from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
 
 
-def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25,
+def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
                    rgbfunction="rgbv1", rdpip="v2", section_idx=0):
     
     render, GRsetting, GRzer = getrenderpip(rdpip)
@@ -64,19 +64,19 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     rbfbasefunction = trbfunction
 
     time_range=[section_idx*section_size, (section_idx+1)*section_size]
-    
-    # Duration is now "local"
+    init_round = section_idx == 0
+    #init_round = True
+
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
-                    time_range=time_range)
+                    time_range=time_range, init_round=init_round, duration = duration)
 
     print("Training section {}".format(section_idx))
 
     with open(os.path.join(scene.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
     
-    init_round = section_idx == 0
-    #init_round = True
+    
 
     currentxyz = gaussians._xyz
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
@@ -99,7 +99,8 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         starttime = os.path.basename(args.source_path).split("_")[1] # colmap_0, 
         assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"            
         pcd = scene.create_pcd_from_bins(args.source_path, starttime, time_range)
-        gaussians.append_from_pcd(pcd)
+        #gaussians.append_from_pcd(pcd)
+       # gaussians.create_from_pcd(pcd, scene.cameras_extent)
     
     numchannel = 9 
 
@@ -123,7 +124,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     flag = 0
     flagtwo = 0
     depthdict = {}
-
+    
     if opt.batch > 1:
         traincameralist = scene.getTrainCameras().copy()
         traincamdict = {}            
@@ -151,6 +152,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
             
             _, depthH, depthW = render_pkg["depth"].shape
+
             
             depth = render_pkg["depth"]
             slectemask = depth != 15.0 #why?
@@ -163,7 +165,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         gaussians.prune_points(zmask)
         torch.cuda.empty_cache()
     else:
-        opt.desicnt = 3 # Limit the number of densification rounds
+        opt.desicnt = 2 # Limit the number of densification rounds
     
     selectedlength = 2
     lasterems = 0
@@ -199,6 +201,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
                 
+                if iteration == 1:
+                    torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
+
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
                     loss = Ll1
@@ -411,7 +416,7 @@ if __name__ == "__main__":
     args, lp_extract, op_extract, pp_extract = getparser()
     
     train_section(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, 
-                                                        densify=args.densify, section_size=args.section_size ,rgbfunction=args.rgbfunction, 
+                                                        densify=args.densify, section_size=args.section_size, duration=args.duration, rgbfunction=args.rgbfunction, 
                                                         rdpip=args.rdpip, section_idx=args.section_idx)
     
     # All done

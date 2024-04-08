@@ -723,6 +723,7 @@ def readColmapSceneInfoImmersive(path, images, eval, llffhold=8, multiview=False
         storePly(totalply_path, xyzt, rgb)
     try:
         pcd = fetchPly(totalply_path)
+        
     except:
         pcd = None
 
@@ -814,13 +815,26 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
                            ply_path=totalply_path)
     return scene_info
 
+# Offset so we don't have negative z values
+def findOffset(path, starttime, duration):
+    print("Finding offset for z axis...")
+    min_z = 0
+    for i in range(starttime, starttime + duration):
+        thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+        xyz, _, _ = read_points3D_binary(thisbin_path)
+        min_z = min(min_z, np.min(xyz[:, 2]))
 
+    offset = 0
+    if min_z < 0:
+        offset = min_z
+    
+    return offset
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], max_init_points=-1):
-    duration = time_range[1]- time_range[0]
+def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], duration= 50, max_init_points=-1):
+    duration_section = time_range[1]- time_range[0]
 
     totalply_path = os.path.join(path, "sparse/0/points3D_total.ply")
-    starttime = os.path.basename(path).split("_")[1] # colmap_0, 
+    starttime = os.path.basename(path).split("_")[1]
     assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
     starttime = int(starttime)
 
@@ -835,47 +849,38 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
     
-    #if not os.path.exists(totalply_path):
-    if True:
-        totalxyz = []
-        totalrgb = []
-        totaltime = []
-        for i in range(starttime + time_range[0], starttime + time_range[1]):
-            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
-            xyz, rgb, _ = read_points3D_binary(thisbin_path)
-            totalxyz.append(xyz)
-            totalrgb.append(rgb)
-            totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime) / duration)
-        xyz = np.concatenate(totalxyz, axis=0)
-        rgb = np.concatenate(totalrgb, axis=0)
-        totaltime = np.concatenate(totaltime, axis=0)
-        
-        # downsample points to max_init_points
-        if max_init_points > 0 and xyz.shape[0] > max_init_points:
-            print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
-            idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
-            xyz = xyz[idx]
-            rgb = rgb[idx]
-            totaltime = totaltime[idx]
+    totalxyz = []
+    totalrgb = []
+    totaltime = []
+    for i in range(starttime + time_range[0], starttime + time_range[1]):
+        thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+        xyz, rgb, _ = read_points3D_binary(thisbin_path)
+        totalxyz.append(xyz)
+        totalrgb.append(rgb)
+        totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime- time_range[0]) / duration_section)
+    xyz = np.concatenate(totalxyz, axis=0)
+    rgb = np.concatenate(totalrgb, axis=0)
+    totaltime = np.concatenate(totaltime, axis=0)
 
-        assert xyz.shape[0] == rgb.shape[0]  
-        xyzt =np.concatenate( (xyz, totaltime), axis=1)
-        storePly(totalply_path, xyzt, rgb)
+    # downsample points to max_init_points
+    if max_init_points > 0 and xyz.shape[0] > max_init_points:
+        print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
+        idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
+        xyz = xyz[idx]
+        rgb = rgb[idx]
+        totaltime = totaltime[idx]
+
+    assert xyz.shape[0] == rgb.shape[0]  
+    xyzt =np.concatenate( (xyz, totaltime), axis=1)
+    storePly(totalply_path, xyzt, rgb)
     
-    try:
-        # TODO: consider minimum between camera and point cloud        
-        pcd = fetchPly(totalply_path)
-        pcd_points = pcd.points
-        min_z = np.min(pcd_points[:, 2])
-        offset = 0
-
-        if min_z < 0:
-            offset = min_z
-            pcd_points[:, 2] = pcd_points[:, 2] - min_z
-            print("Shifting everything in the z axis {}".format(-offset))
-    except:
-        print("Could not read point cloud. Offset with be inconsistent across sections.")
-        pcd = None
+    # TODO: consider minimum between camera and point cloud        
+    pcd = fetchPly(totalply_path)
+    pcd_points = pcd.points
+    offset = findOffset(path, starttime, duration)
+    pcd_points[:, 2] = pcd_points[:, 2] - offset
+    pcd = BasicPointCloud(points=pcd_points, colors=pcd.colors, normals=pcd.normals, times=pcd.times)
+    print("Z axis offset is: {}".format(-offset))
 
     reading_dir = "images" if images == None else images
 

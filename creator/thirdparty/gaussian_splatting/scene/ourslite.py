@@ -82,6 +82,8 @@ class GaussianModel:
         self.computedopacity = None
         self.raystart = 0.7
 
+        self.original_point_count = 0
+
 
         
     def capture(self):
@@ -148,6 +150,81 @@ class GaussianModel:
     def oneupSHdegree(self):
         if self.active_sh_degree < self.max_sh_degree:
             self.active_sh_degree += 1
+
+    def append_from_pcd(self, pcd : BasicPointCloud):
+
+        if self.preprocesspoints == 3:
+            pcd = interpolate_point(pcd, 4) 
+        
+        elif self.preprocesspoints == 4:
+            pcd = interpolate_point(pcd, 2) 
+        
+        elif self.preprocesspoints == 5:
+            pcd = interpolate_point(pcd, 6) 
+
+        elif self.preprocesspoints == 6:
+            pcd = interpolate_point(pcd, 8) 
+        
+        elif self.preprocesspoints == 7:
+            pcd = interpolate_point(pcd, 16) 
+        
+        elif self.preprocesspoints == 8:
+            pcd = interpolate_pointv3(pcd, 4) 
+
+        elif self.preprocesspoints == 14:
+            pcd = interpolate_partuse(pcd, 2) 
+        
+        elif self.preprocesspoints == 15:
+            pcd = interpolate_partuse(pcd, 4) 
+
+        elif self.preprocesspoints == 16:
+            pcd = interpolate_partuse(pcd, 8) 
+        
+        elif self.preprocesspoints == 17:
+            pcd = interpolate_partuse(pcd, 16) 
+        else:
+            pass 
+        
+        fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
+        fused_color = torch.tensor(np.asarray(pcd.colors)).float().cuda()
+        times = torch.tensor(np.asarray(pcd.times)).float().cuda()
+
+        print("Number of new points: ", fused_point_cloud.shape[0])
+
+        dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
+        scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
+        scales = torch.clamp(scales, -10, 1.0)
+
+        rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
+        rots[:, 0] = 1
+        
+        opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
+
+        _xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        
+        features9channel = fused_color
+        _features_dc = nn.Parameter(features9channel.contiguous().requires_grad_(True))
+        
+        _scaling = nn.Parameter(scales.requires_grad_(True))
+        _rotation = nn.Parameter(rots.requires_grad_(True))
+
+        omega = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
+        _omega = nn.Parameter(omega.requires_grad_(True))
+        
+        _opacity = nn.Parameter(opacities.requires_grad_(True))
+        
+        motion = torch.zeros((fused_point_cloud.shape[0], 9), device="cuda")# x1, x2, x3,  y1,y2,y3, z1,z2,z3
+        _motion = nn.Parameter(motion.requires_grad_(True))
+        
+        
+        _trbf_center = nn.Parameter(times.contiguous().requires_grad_(True))
+        _trbf_scale = nn.Parameter(torch.ones((fused_point_cloud.shape[0], 1), device="cuda").requires_grad_(True)) 
+
+        # Add them
+        self.densification_postfix(_xyz, _features_dc, _opacity, _scaling,
+                                   _rotation, _trbf_center, _trbf_scale,_motion, _omega, _trbf_scale)
+
+    
 
     def create_from_pcd(self, pcd : BasicPointCloud, spatial_lr_scale : float):
 
@@ -1145,9 +1222,6 @@ class GaussianModel:
 
 
     def densify_pruneclone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1, init_round=True):
-        if not init_round:
-            # structure should be somewhat good already from previous rounds
-            max_grad = max_grad * 1000
         
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
@@ -1158,14 +1232,15 @@ class GaussianModel:
 
         self.densify_and_splitv2(grads, max_grad, extent, 2)
         print("after split", self._xyz.shape[0])
-
-        if (init_round):
+        
+        if (init_round):    
             prune_mask = (self.get_opacity < min_opacity).squeeze()
             if max_screen_size:
                 big_points_vs = self.max_radii2D > max_screen_size  
                 big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
-
                 prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+            #self.prune_points(prune_mask)
+
         torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):

@@ -13,30 +13,33 @@ import os
 import random
 import json
 from utils.system_utils import searchForMaxIteration
-from scene.dataset_readers import sceneLoadTypeCallbacks
+from scene.dataset_readers import sceneLoadTypeCallbacks, storePly, fetchPly, findOffset
 from scene.oursfull import GaussianModel
 from arguments import ModelParams
 from PIL import Image 
 from utils.camera_utils import camera_to_JSON, cameraList_from_camInfosv2, cameraList_from_camInfosv2nogt
 from helper_train import recordpointshelper, getfisheyemapper
-import torch 
-
+import torch
+from scene.colmap_loader import read_points3D_binary
+from utils.graphics_utils import BasicPointCloud
+import numpy as np
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=[0,50], section_id=0, loader="colmap", duration=-1):
+                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap", init_round=True):
         """b
         :param path: Path to colmap scene main folder.
         """
-        if duration != -1:
+        if time_range == None:
             time_range = [0, duration]
         
-        self.model_path = args.model_path #+ "_" + str(section_id)
+        self.model_path = args.model_path + "_" + str(section_id)
         os.makedirs(self.model_path, exist_ok=True)
         self.loaded_iter = None
         self.gaussians = gaussians
         self.refmodelpath = None
         self.current_section = section_id
+        self.duration = duration
 
         if load_iteration:
             if load_iteration == -1:
@@ -51,7 +54,7 @@ class Scene:
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
-                                                          multiview, time_range=time_range, max_init_points=args.max_init_points)
+                                                          multiview, time_range=time_range, duration = duration, max_init_points=args.max_init_points)
         elif loader == "dynerf" or loader == "dynerfvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Dynerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "technicolor" or loader == "technicolorvalid" :
@@ -149,12 +152,12 @@ class Scene:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
         
         # Load the point cloud, only section 0 can modify the point cloud
-        if self.loaded_iter and section_id == 0:
+        if self.loaded_iter and init_round:
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
-        elif section_id == 0:
+        elif init_round:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
         else:
             # Load previous ply
@@ -163,7 +166,40 @@ class Scene:
                                                            "point_cloud",
                                                            "iteration_" + str(searchForMaxIteration(load_path)),
                                                            "point_cloud.ply"))
-    
+
+    def create_pcd_from_bins(self, source_path, starttime, time_range):
+
+        totalxyz = []
+        totalrgb = []
+        totaltime = []
+        duration_sec = time_range[1] - time_range[0]
+        starttime = int(starttime)
+
+        totalply_path = os.path.join(source_path.replace("colmap_"+ str(starttime), "colmap_" + str(time_range[0]), 1), "sparse/0/points3D_total.ply")
+        
+        # 0 -> 10   then 11 -> 21
+        for i in range(int(starttime) + time_range[0], int(starttime) + time_range[0] + duration_sec):
+            thisbin_path = os.path.join(source_path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_binary(thisbin_path)
+            totalxyz.append(xyz)
+            totalrgb.append(rgb)
+            totaltime.append(np.ones((xyz.shape[0], 1)) * (i- int(starttime)- time_range[0]) / duration_sec)
+            xyz = np.concatenate(totalxyz, axis=0)
+        rgb = np.concatenate(totalrgb, axis=0)
+        totaltime = np.concatenate(totaltime, axis=0)
+        assert xyz.shape[0] == rgb.shape[0]  
+        xyzt =np.concatenate( (xyz, totaltime), axis=1)     
+        storePly(totalply_path, xyzt, rgb)
+
+        pcd = fetchPly(totalply_path)
+        pcd_points = pcd.points
+        offset = findOffset(source_path, starttime, self.duration)
+        pcd_points[:, 2] = pcd_points[:, 2] - offset
+        pcd = BasicPointCloud(points=pcd_points, colors=pcd.colors, normals=pcd.normals, times=pcd.times)
+        print("Z axis offset is: {}".format(-offset))
+        
+        return pcd
+
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))

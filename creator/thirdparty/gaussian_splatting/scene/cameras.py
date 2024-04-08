@@ -110,6 +110,15 @@ class Camera(nn.Module):
         else :
             self.rayo = None
             self.rayd = None
+    
+    def load2device(self, data_device='cuda'):
+        self.original_image = self.original_image.to(data_device)
+        self.world_view_transform = self.world_view_transform.to(data_device)
+        self.projection_matrix = self.projection_matrix.to(data_device)
+        self.full_proj_transform = self.full_proj_transform.to(data_device)
+        self.camera_center = self.camera_center.to(data_device)
+        #self.fid = self.fid.to(data_device)
+
 
 
 
