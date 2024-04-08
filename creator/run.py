@@ -1,8 +1,8 @@
 import sys
 import os
 
-source = "/media/pablo/Nuevo_vol/capturas/cocina/output/colmap_1"
-model = "output/huevos_frag/sec"
+source = "D:/capturas/cocina/output/colmap_1"
+model = "output/new/sec"
 config = "configs/custom/main.json"
 total_duration = 299
 section_size = 10

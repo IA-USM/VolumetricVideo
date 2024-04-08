@@ -106,7 +106,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
         T = np.array(extr.tvec)
         
         W2V = getWorld2View2(R,T, translate=offset)
-        V2W = np.linalg.inv(W2V)
         T = W2V[:3, 3]
 
         if intr.model=="SIMPLE_PINHOLE":
@@ -694,7 +693,7 @@ def readColmapSceneInfoImmersive(path, images, eval, llffhold=8, multiview=False
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
+    totalply_path = os.path.join(path, "sparse/0/points3D_total.ply")
     
     # if os.path.exists(ply_path):
     #     os.remove(ply_path)
@@ -820,7 +819,7 @@ def readColmapSceneInfoMv(path, images, eval, llffhold=8, multiview=False, durat
 def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], max_init_points=-1):
     duration = time_range[1]- time_range[0]
 
-    totalply_path = os.path.join(path, "sparse/0/points3D_total" + str(duration) + ".ply")
+    totalply_path = os.path.join(path, "sparse/0/points3D_total.ply")
     starttime = os.path.basename(path).split("_")[1] # colmap_0, 
     assert starttime.isdigit(), "Colmap folder name must be colmap_<startime>_<duration>!"
     starttime = int(starttime)
@@ -838,7 +837,6 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
     
     #if not os.path.exists(totalply_path):
     if True:
-        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
         totalxyz = []
         totalrgb = []
         totaltime = []
@@ -851,7 +849,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
         xyz = np.concatenate(totalxyz, axis=0)
         rgb = np.concatenate(totalrgb, axis=0)
         totaltime = np.concatenate(totaltime, axis=0)
-
+        
         # downsample points to max_init_points
         if max_init_points > 0 and xyz.shape[0] > max_init_points:
             print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
@@ -859,31 +857,34 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
             xyz = xyz[idx]
             rgb = rgb[idx]
             totaltime = totaltime[idx]
-            
-        min_z_points = np.min(xyz[:, 2])
-        min_z_camera = np.min([np.min(cam_extrinsics[key].tvec[2]) for key in cam_extrinsics])
-        min_z = min(min_z_points, min_z_camera)
-
-        if min_z < 0:
-            print("Shifting everything in z axis by {}".format(-min_z))
-            xyz[:, 2] -= min_z
 
         assert xyz.shape[0] == rgb.shape[0]  
         xyzt =np.concatenate( (xyz, totaltime), axis=1)
         storePly(totalply_path, xyzt, rgb)
+    
     try:
+        # TODO: consider minimum between camera and point cloud        
         pcd = fetchPly(totalply_path)
+        pcd_points = pcd.points
+        min_z = np.min(pcd_points[:, 2])
+        offset = 0
+
+        if min_z < 0:
+            offset = min_z
+            pcd_points[:, 2] = pcd_points[:, 2] - min_z
+            print("Shifting everything in the z axis {}".format(-offset))
     except:
+        print("Could not read point cloud. Offset with be inconsistent across sections.")
         pcd = None
 
     reading_dir = "images" if images == None else images
 
-    near = 0.001
+    near = 0.01
     far = 100
     
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, 
                                            images_folder=os.path.join(path, reading_dir), near=near, 
-                                           far=far, startime=starttime, time_range=time_range, offset=np.array([.0, .0, -min_z]))
+                                           far=far, startime=starttime, time_range=time_range, offset=np.array([.0, .0, -offset]))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
      
 

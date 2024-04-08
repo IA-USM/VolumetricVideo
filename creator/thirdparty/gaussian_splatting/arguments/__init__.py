@@ -59,7 +59,7 @@ class ModelParams(ParamGroup):
         self.loader = "colmap" #
         self.sections = True
         self.max_init_points = 10000
-        self.load2gpu_on_the_fly = True
+        self.load2gpu_on_the_fly = False
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -117,7 +117,7 @@ class OptimizationParams(ParamGroup):
         self.saveemppoints = 0 #
         self.prunebysize = 0 
         self.emsthr = 0.6  
-        self.opthr = 0.005
+        self.opthr = 0.006
         self.selectiveview = 0  
         self.preprocesspoints = 0
         self.fzrotit = 8001
