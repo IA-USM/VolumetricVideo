@@ -159,7 +159,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     lasterems = 0
 
     for iteration in range(first_iter, iterations + 1):        
-        if iteration ==  opt.emsstart:
+        if iteration ==  opt.emsstart and section_idx == 0:
             flagems = 1 # start ems
 
         iter_start.record()
@@ -398,6 +398,14 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     # Save gaussians at the end of each section
     print("\n[ITER {}] Saving final Gaussians for section {}".format(iteration, section_idx))
     print("Final Gaussian Count: ", gaussians._xyz.shape[0])
+    
+    # Save the points for next section 
+    pcd_path = os.path.join(os.path.dirname(scene.model_path), "points")
+    os.makedirs(pcd_path, exist_ok=True)
+    
+    gaussians.save_pcd(os.path.join(pcd_path, f"section_{section_idx}.ply"), section_size = section_size) # implement
+
+    # Save full ply
     scene.save(iteration)
     
 if __name__ == "__main__":

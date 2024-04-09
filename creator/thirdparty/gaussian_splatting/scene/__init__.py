@@ -23,6 +23,12 @@ import torch
 from scene.colmap_loader import read_points3D_binary
 from utils.graphics_utils import BasicPointCloud
 import numpy as np
+
+import sys
+# Append the parent of the parent directory
+#sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pointcloud_matcher import PointMatcher
+
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
@@ -51,6 +57,9 @@ class Scene:
         self.train_cameras = {}
         self.test_cameras = {}
         raydict = {}
+
+        if args.use_same_points and section_id > 0:
+            self.matcher = PointMatcher(samples=3000)
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
@@ -158,11 +167,27 @@ class Scene:
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
         else:
-            # Create pcd from current sec
-            starttime = os.path.basename(args.source_path).split("_")[1]
-            starttime = int(starttime)
-            point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range)
-            self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
+            if args.use_same_points and section_id > 0:
+                starttime = os.path.basename(args.source_path).split("_")[1]
+                starttime = int(starttime)
+
+                prev_pcd_path = os.path.join(os.path.dirname(self.model_path), "points", f"section_{section_id-1}.ply")
+                point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+                prev_pcd = fetchPly(prev_pcd_path)
+                
+                #print("Warping points from previous section to match the current ...")
+                #warped_points = self.matcher.match(prev_pcd.points, point_cloud_current.points)
+                #point_cloud = BasicPointCloud(points=warped_points, colors=prev_pcd.colors, normals=prev_pcd.normals, times=prev_pcd.times)
+                
+                #self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
+                self.gaussians.create_from_pcd(prev_pcd, self.cameras_extent)
+
+            else:
+                # Create pcd from current sec
+                starttime = os.path.basename(args.source_path).split("_")[1]
+                starttime = int(starttime)
+                point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+                self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
 #
     def create_pcd_from_bins(self, source_path, starttime, time_range):
 
@@ -172,7 +197,7 @@ class Scene:
         duration_sec = time_range[1] - time_range[0]
         starttime = int(starttime)
 
-        totalply_path = os.path.join(source_path.replace("colmap_"+ str(starttime), "colmap_" + str(time_range[0]), 1), "sparse/0/points3D_total.ply")
+        totalply_path = os.path.join(source_path.replace("colmap_"+ str(starttime), "colmap_" + str(time_range[0]+ starttime), 1), "sparse/0/points3D_total.ply")
         
         # 0 -> 10   then 11 -> 21
         for i in range(int(starttime) + time_range[0], int(starttime) + time_range[0] + duration_sec):
@@ -181,7 +206,7 @@ class Scene:
             totalxyz.append(xyz)
             totalrgb.append(rgb)
             totaltime.append(np.ones((xyz.shape[0], 1)) * (i- int(starttime)- time_range[0]) / duration_sec)
-            xyz = np.concatenate(totalxyz, axis=0)
+        xyz = np.concatenate(totalxyz, axis=0)
         rgb = np.concatenate(totalrgb, axis=0)
         totaltime = np.concatenate(totaltime, axis=0)
         assert xyz.shape[0] == rgb.shape[0]  

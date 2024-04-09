@@ -20,6 +20,9 @@ from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation, update_quaternion
 from helper_model import getcolormodel, interpolate_point, interpolate_partuse,interpolate_pointv3
+from scene.dataset_readers import storePly
+from helper_train import trbfunction
+
 class GaussianModel:
 
     def setup_functions(self):
@@ -39,8 +42,6 @@ class GaussianModel:
 
         self.rotation_activation = torch.nn.functional.normalize
         #self.featureact = torch.sigmoid
-
-        
 
 
     def __init__(self, sh_degree : int, rgbfuntion="rgbv1"):
@@ -499,6 +500,74 @@ class GaussianModel:
         print(f'Saving model checkpoint to: {model_fname}')
         # torch.save(self.rgbdecoder.state_dict(), model_fname)
 
+    def save_pcd(self, path, section_size=10, save_method='last'):
+        
+        if (save_method=='avg'):
+
+            totalxyz = []
+            totalrgb = []
+            totaltimes = []
+            
+            trbfcenter = self.get_trbfcenter
+            pointtimes = torch.ones((self.get_xyz.shape[0],1), dtype=self.get_xyz.dtype, requires_grad=False, device="cuda") + 0 #
+            means3D = self.get_xyz
+
+            for time in range(0, section_size):
+                timestamp = time/section_size
+                trbfdistanceoffset = timestamp * pointtimes - trbfcenter
+                tforpoly = trbfdistanceoffset.detach()
+                xyz = means3D +  self._motion[:, 0:3] * tforpoly + self._motion[:, 3:6] * tforpoly * tforpoly + self._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+                colors = self.get_features(tforpoly)
+
+                totalxyz.append(xyz)
+                totalrgb.append(colors)
+                totaltimes.append(torch.ones((xyz.shape[0], 1)) * torch.tensor(timestamp))
+            
+            xyz = torch.stack(totalxyz).mean(dim=0)
+            rgb = torch.stack(totalrgb).mean(dim=0)
+            totaltime = torch.stack(totaltimes).mean(dim=0).to(xyz.device)
+            assert xyz.shape[0] == rgb.shape[0]  
+            xyzt =torch.concatenate( (xyz, totaltime.to(xyz.device)), axis=1)     
+            
+            rgb = np.clip(rgb.detach().cpu().numpy(),0,1) * 255
+            rgb = rgb.astype(np.uint8)
+
+            xyzt = xyzt.detach().cpu().numpy()
+
+        elif (save_method=='base'):
+            pointtimes = torch.ones((self.get_xyz.shape[0],1), dtype=self.get_xyz.dtype, requires_grad=False, device="cuda") + 0 #
+            trbfdistanceoffset = 0.5 * pointtimes
+            tforpoly = trbfdistanceoffset.detach()
+
+            rgb = (np.clip(self.get_features(tforpoly).detach().cpu().numpy(),0,1) * 255).astype(np.uint8)
+            xyz = self.get_xyz
+
+            xyzt = torch.cat((xyz, torch.zeros((xyz.shape[0], 1), device=xyz.device)), dim=1).detach().cpu().numpy()
+
+        elif (save_method=='last'):
+            pointtimes = torch.ones((self.get_xyz.shape[0],1), dtype=self.get_xyz.dtype, requires_grad=False, device="cuda") + 0
+            trbfcenter = self.get_trbfcenter
+            means3D = self.get_xyz
+
+            timestamp = 1
+            trbfdistanceoffset = timestamp * pointtimes - trbfcenter
+            tforpoly = trbfdistanceoffset.detach()
+            xyz = means3D +  self._motion[:, 0:3] * tforpoly + self._motion[:, 3:6] * tforpoly * tforpoly + self._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+            rgb = self.get_features(tforpoly)
+            times = torch.ones((xyz.shape[0], 1)) * torch.tensor(timestamp)
+            times = times.to(xyz.device)
+
+            xyzt =torch.concatenate( (xyz, times), axis=1)     
+            
+            rgb = np.clip(rgb.detach().cpu().numpy(),0,1) * 255
+            rgb = rgb.astype(np.uint8)
+
+            xyzt = xyzt.detach().cpu().numpy()
+        
+        print(f'Saving points to: {path}')
+
+        storePly(path, xyzt, rgb)
+        
 
     def reset_opacity(self):
         opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))

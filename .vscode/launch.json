@@ -1,0 +1,18 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+           // "args": ["-s" ,"D:/datasets/plenoptic/flame_steak/colmap_0","-m", "output/flame", 
+           // "--config", "config","--section_idx", "1"]
+           "args": ["--videopath", "D:/capturas/ballet", "--colmap_executable", "D:/COLMAP-3.9.1-windows-cuda/COLMAP-3.9.1-windows-cuda/COLMAP.bat"]
+        }
+    ]
+}
