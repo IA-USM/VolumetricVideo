@@ -173,9 +173,9 @@ def train_sections(dataset, opt, pipe, saving_iterations, debug_from, densify=0,
         lasterems = 0 
 
         for iteration in range(first_iter, iterations + 1):        
-            if iteration ==  opt.emsstart:
+            if iteration ==  opt.emsstart or iteration == 20_000:
                 flagems = 1 # start ems
-
+            
             iter_start.record()
             gaussians.update_learning_rate(iteration)
             

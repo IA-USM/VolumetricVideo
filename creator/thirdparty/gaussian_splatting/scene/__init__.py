@@ -26,7 +26,7 @@ import numpy as np
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap", init_round=True):
+                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap"):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -152,25 +152,17 @@ class Scene:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
         
         # Load the point cloud, only section 0 can modify the point cloud
-        if self.loaded_iter and init_round:
+        if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
-        elif init_round:
-            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
         else:
             # Create pcd from current sec
             starttime = os.path.basename(args.source_path).split("_")[1]
             starttime = int(starttime)
             point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range)
             self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
-            # Load previous ply
-            #load_path = os.path.join(args.model_path + "_" + str(section_id-1), "point_cloud")
-            #self.gaussians.load_ply(os.path.join(args.model_path + "_" + str(section_id-1),
-           #                                                "point_cloud",
-            #                                               "iteration_" + str(searchForMaxIteration(load_path)),
-           #                                                "point_cloud.ply"))
 #
     def create_pcd_from_bins(self, source_path, starttime, time_range):
 

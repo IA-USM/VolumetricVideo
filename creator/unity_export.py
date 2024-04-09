@@ -59,8 +59,9 @@ def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_c
     max_splat_count = max(max_splat_count, splat_count)
     chunk_count = (max_splat_count+args.chunk_size-1) // args.chunk_size
     
-    if (time_range[1] == args.duration):
-        create_one_file_sections(save_path, max_splat_count=max_splat_count, chunk_count=chunk_count, frame_time=args.save_interval/args.fps, args=args)
+    # args.duration
+    if (time_range[1] == 120):
+        create_one_file_sections(save_path, max_splat_count=max_splat_count, max_chunk_count=chunk_count, frame_time=args.save_interval/args.fps, args=args)
     
     time2= time.time()
 

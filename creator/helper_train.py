@@ -203,7 +203,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
                 else:
-                    if iteration < 7000 and init_round: # defalt 7000. 
+                    if iteration < 7000: # defalt 7000. 
                         prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
                         prune_mask = torch.logical_or((gaussians.get_scaling < 0.5).squeeze(), prune_mask)
                         gaussians.prune_points(prune_mask)
@@ -216,11 +216,11 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
             freezweightsbymasknounsqueeze(gaussians, ["_omega"], gaussians.omegamask)
             rotationmask = torch.logical_not(gaussians.omegamask)
             freezweightsbymasknounsqueeze(gaussians, ["_rotation"], rotationmask) #uncomment freezeweight... for fast traning speed.
-            if iteration % 1000 == 500 and init_round:
+            if iteration % 1000 == 500:
                 zmask = gaussians._xyz[:,2] < 4.5  # 
                 gaussians.prune_points(zmask) 
                 torch.cuda.empty_cache()
-            if iteration == 10000 and init_round:
+            if iteration == 10000:
                 removeminmax(gaussians, maxbounds, minbounds)
         return flag
     
@@ -238,7 +238,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 if flag < opt.desicnt:
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold, init_round=init_round)
+                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
                 else:

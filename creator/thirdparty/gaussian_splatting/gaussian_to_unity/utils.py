@@ -1,7 +1,6 @@
 import numpy as np
 import struct
 import os
-import torch
 from sklearn.cluster import KMeans
 
 kScaler = (1 << 21) - 1
@@ -249,7 +248,7 @@ def create_positions_asset(means3D_sorted, basepath, format='Norm11', idx=-1, on
             for mean3d in means3D_sorted:
                 f.write(encode_vector(means3D_sorted, format).tobytes())
     else:
-        output_folder = os.path.join(os.path.dirname(basepath), "positions")
+        output_folder = os.path.join(basepath, "positions")
         os.makedirs(output_folder, exist_ok=True)
         path = os.path.join(output_folder, f"{idx}.bytes")
 
@@ -268,7 +267,7 @@ def create_others_asset(rotations, scales, basepath, scale_format, idx=-1):
         if os.path.exists(path):
             os.remove(path)
     else:
-        output_folder = os.path.join(os.path.dirname(basepath), "others")
+        output_folder = os.path.join(basepath, "others")
         os.makedirs(output_folder, exist_ok=True)
         path = os.path.join(output_folder, f"{idx}.bytes")
 
@@ -295,7 +294,7 @@ def create_chunks_asset(pos_chunks, scale_chunks, basepath, idx=0, one_file=Fals
         path = os.path.join(basepath, f"chunk_data.bytes")
         mode = 'ab' if idx > 0 else 'wb'
     else:
-        output_folder = os.path.join(os.path.dirname(basepath), "chunks")
+        output_folder = os.path.join(basepath, "chunks")
         os.makedirs(output_folder, exist_ok=True)
         path = os.path.join(output_folder, f"{idx}.bytes")
         mode = 'wb'
@@ -385,12 +384,13 @@ def sort_key(filename):
     # Remove the '.bytes' extension and convert the remaining string to an integer
     return int(filename.replace('.bytes', ''))
 
+
 def create_one_file(basepath, splat_count=0, chunk_count=0, frame_time=1/20, args=None):
 
     # Current format
-    # 1- Metadata
-    # 2- Static data
-    # 3- Dynamic data, intercalated positions and chunks
+    # 1- Header information: Position, encoding formats, etc
+    # 2 - Static data
+    # 3 - Dynamic data
 
     positions_path = os.path.join(basepath, "positions")
     others_path = os.path.join(basepath, "others")
@@ -434,7 +434,7 @@ def create_one_file(basepath, splat_count=0, chunk_count=0, frame_time=1/20, arg
     data.append(struct.pack('f', args.scale[2])) # Scale z
 
     static_info = ["chunks_static.bytes"]
-
+    
     if (not args.dynamic_color):
         static_info.append("colors.bytes")
 
@@ -486,6 +486,172 @@ def create_one_file(basepath, splat_count=0, chunk_count=0, frame_time=1/20, arg
         
     # Write the data to a single file
     file_name = os.path.join(os.path.dirname(basepath), args.save_name)
+
+    with open(file_name, 'wb') as f:
+        for chunk in data:
+            f.write(chunk)
+        try:
+            audio_path = args.audio_path
+        except:
+            audio_path = None
+        
+        if (audio_path != None):
+            print("Adding audio: ", args.audio_path)
+            audio_size = os.path.getsize(args.audio_path)
+            with open(args.audio_path, 'rb') as f_audio:
+                f.write(struct.pack('I', audio_size))
+                f.write(f_audio.read())
+    
+    print("File created: ", file_name)
+
+def find_max_file_size_folder(basepath, folder, all_sections):
+    max_size = 0
+    for section in all_sections:
+        if (".v3d" in section):
+            continue
+        path = os.path.join(basepath, section, folder)
+        for file in os.listdir(path):
+            size = os.path.getsize(os.path.join(path, file))
+            if (size > max_size):
+                max_size = size
+    return max_size
+
+def find_max_file_size(basepath, file, all_sections):
+    max_size = 0
+    argmax = ""
+    for section in all_sections:
+        if (".v3d" in section):
+            continue
+        filepath = os.path.join(basepath, section, file)
+        size = os.path.getsize(filepath)
+        if (size > max_size):
+            max_size = size
+            argmax = filepath
+    return max_size, argmax
+
+def create_one_file_sections(basepath, max_splat_count=0, max_chunk_count=0, frame_time=1/20, args=None):
+    # Arreglar orden
+
+    # Current format
+    # 1- Header information: Position, encoding formats, etc
+    # 2- Blocks
+    # 2.1 - Static data N
+    # 2.2 - Dynamic data N
+    # ... for all blocks
+    
+    basepath = os.path.dirname(basepath)
+    all_sections = [s for s in os.listdir(basepath) if os.path.isdir(os.path.join(basepath, s))]
+    sorted_sections = sorted(all_sections, key=lambda x: int(x.split("_")[-1]))
+    file_name = os.path.join(basepath, args.save_name)
+    if os.path.exists(file_name):
+        os.remove(file_name)
+    data = []
+    
+    # ---- Header information -----
+    
+    format_version = 20231006
+
+    color_width, color_height = calc_texture_size(max_splat_count)
+
+    frame_count = len(os.listdir(os.path.join(basepath, sorted_sections[0], "positions"))) * len(sorted_sections)
+
+    data.append(struct.pack('I', format_version)) # Format version
+    data.append(struct.pack('I', max_splat_count)) # Splat count
+    data.append(struct.pack('f', frame_time)) # Frame time
+    data.append(struct.pack('I', frame_count)) # Frame count
+    data.append(struct.pack('I', max_chunk_count)) # Chunk count
+    data.append(struct.pack('I', VectorFormats[args.pos_format])) # Position format
+    data.append(struct.pack('I', VectorFormats[args.scale_format])) # Scale format
+    data.append(struct.pack('I', SHFormats[args.sh_format])) # SH format
+    data.append(struct.pack('I', ColorFormats[args.col_format])) # Color format 
+    data.append(struct.pack('I', color_width)) # Color width
+    data.append(struct.pack('I', color_height)) # Color height
+    data.append(struct.pack('I', int(args.dynamic_others))) # Include dynamic rotations and scaling
+    data.append(struct.pack('I', int(args.dynamic_color))) # Include dynamic opacity
+    data.append(struct.pack('I', int(args.include_shs))) # If it has shs
+    
+    # Transforms
+    data.append(struct.pack('f', args.pos_offset[0])) # Position offset x
+    data.append(struct.pack('f', args.pos_offset[1])) # Position offset y
+    data.append(struct.pack('f', args.pos_offset[2])) # Position offset z
+    data.append(struct.pack('f', args.rot_offset[0])) # Rotation offset x
+    data.append(struct.pack('f', args.rot_offset[1])) # Rotation offset y
+    data.append(struct.pack('f', args.rot_offset[2])) # Rotation offset z
+    data.append(struct.pack('f', args.scale[0])) # Scale x
+    data.append(struct.pack('f', args.scale[1])) # Scale y
+    data.append(struct.pack('f', args.scale[2])) # Scale z
+
+    static_info = ["chunks_static.bytes"]
+    
+    if (not args.dynamic_color):
+        static_info.append("colors.bytes")
+
+    if (args.include_shs):
+        static_info.append("shs.bytes")
+
+    if (not args.dynamic_others):
+        static_info.append("others.bytes")
+    
+    # ---- Static data ----
+    
+    for info in static_info:
+        size, file = find_max_file_size(basepath, info, sorted_sections)
+        with open(file, 'rb') as f:            
+            data.append(struct.pack('I', size))
+            data.append(f.read())
+    
+    # ---- Dynamic data ----
+    pos_size_max = find_max_file_size_folder(basepath, "positions", sorted_sections)
+    chunk_size_max = find_max_file_size_folder(basepath, "chunks", sorted_sections)
+
+    # Write Sizes
+    data.append(struct.pack('I', pos_size_max))
+    data.append(struct.pack('I', chunk_size_max))
+    
+    if (args.dynamic_others):
+        others_size_max = find_max_file_size_folder(basepath, "others", sorted_sections)
+        data.append(struct.pack('I', others_size_max))
+    
+    if (args.dynamic_color):
+        colors_size_max = find_max_file_size_folder(basepath, "colors", sorted_sections)
+        data.append(struct.pack('I', colors_size_max))
+
+    for section in sorted_sections:
+        others_path = os.path.join(basepath,section, "others")
+        colors_path = os.path.join(basepath, section, "colors")
+        chunks_path = os.path.join(basepath, section, "chunks")
+        positions_path = os.path.join(basepath, section, "positions")
+
+        # Actual data
+        for idx in sorted(os.listdir(positions_path), key=sort_key):
+            with open(os.path.join(positions_path, idx), 'rb') as f:
+                difference = pos_size_max - os.path.getsize(os.path.join(positions_path, idx))
+                data.append(f.read())
+                if (difference > 0):
+                    data.append(bytearray(difference))
+        
+            with open(os.path.join(chunks_path, idx), 'rb') as f:
+                difference = chunk_size_max - os.path.getsize(os.path.join(chunks_path, idx))
+                data.append(f.read())
+                if (difference > 0):
+                    data.append(bytearray(difference))
+            
+            if (args.dynamic_others):
+                with open(os.path.join(others_path, idx), 'rb') as f:
+                    difference = others_size_max - os.path.getsize(os.path.join(others_path, idx))
+                    data.append(f.read())
+                    if (difference > 0):
+                        data.append(bytearray(difference))
+            
+            if (args.dynamic_color):
+                with open(os.path.join(colors_path, idx), 'rb') as f:
+                    difference = colors_size_max - os.path.getsize(os.path.join(colors_path, idx))
+                    data.append(f.read())
+                    if (difference > 0):
+                        data.append(bytearray(difference))
+    
+    # Write the data to a single file
+    file_name = os.path.join(basepath, args.save_name)
 
     with open(file_name, 'wb') as f:
         for chunk in data:

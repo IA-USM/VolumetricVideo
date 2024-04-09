@@ -13,19 +13,20 @@ if __name__ == "__main__":
     model_extract.resolution = 2
 
     all_sections = glob.glob(args.model_path[:-2] + "_*")
+    sorted_sections = sorted(all_sections, key=lambda x: int(x.split("_")[-1]))
     
     args, model_extract, pp_extract, multiview =gettestparse()
     args.scale = [4,-4,4]
     args.pos_offset = [0,0,0]
     args.rot_offset = [0,0,0]
     args.save_interval = 2
-    args.save_name = "test.v3d"
+    args.save_name = "test3.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
-    args.include_others = True
+    args.dynamic_others = True
     
     outpath = "test"
 
-    for idx, section in enumerate(sorted(all_sections)):
+    for idx, section in enumerate(sorted_sections):
         
         time_range = [idx*args.section_size, (idx+1)*args.section_size]
 

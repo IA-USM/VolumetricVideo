@@ -64,12 +64,22 @@ def gaussian_timestep_to_unity(means3d: torch.tensor,
         dc = dc.cpu().numpy()[order_indexes]
         opacity = opacity.cpu().numpy()[order_indexes]
         dc, opacity = linealize_colors(dc, opacity)
+
+        dc_range = [-8, 8]
+        opacity_range = [0, 1]
+        # Hardcoded bounds until better solution
+        dc =  np.clip((dc - dc_range[0]) / (dc_range[1] - dc_range[0]), 0, 1)
+        opacity =  np.clip((opacity - opacity_range[0]) / (opacity_range[1] - opacity_range[0]), 0, 1)
+        
         # dc: N, 1, 3 to N, 3
         if (dc.shape[1] == 1):
             dc = dc.squeeze(1)
-
+        
         col = np.concatenate((dc, opacity), axis=1)
+
+        # workaround to sections - just normalize with 0 to 1 
         col_to_save, _ = create_chunks(col, means3d.shape[0], chunkSize, predef_bounds=col_chunks)
+        col_to_save = (col - col.min()) / (col.max() - col.min()) 
     
     timestart = tm.time()
     create_chunks_asset(means_chunks, scale_chunks, basepath, idx= idx)
@@ -140,9 +150,23 @@ def gaussian_static_data_to_unity(splat_count: int,
     shs = shs[:, 1:, :]
     
     global col_chunks
-
+    
+    dc_range = [-8, 8]
+    opacity_range = [0, 1]
+    # Hardcoded bounds until better solution
+    dc =  np.clip((dc - dc_range[0]) / (dc_range[1] - dc_range[0]), 0, 1)
+    opacity =  np.clip((opacity - opacity_range[0]) / (opacity_range[1] - opacity_range[0]), 0, 1)
     col = np.concatenate((dc, opacity), axis=1)
-    col_to_save, col_chunks = create_chunks(col, splat_count, chunkSize)
+    # for now just have the range be -8 to 8 for rgb and 0 to 1 for opacity
+    _, dummy_col_chunks = create_chunks(col, splat_count, chunkSize)
+    col_to_save = col
+    col_chunks = np.zeros_like(dummy_col_chunks)
+
+    col_chunks[:,0,:3] = dc_range[0]
+    col_chunks[:,1,:3] = dc_range[1]
+    col_chunks[:,0, 3] = opacity_range[0]
+    col_chunks[:,1, 3] = opacity_range[1]
+    
     shs_to_save, shs_chunks = create_chunks(shs, splat_count, chunkSize, True)
 
     shs_chunks = shs_chunks.squeeze(2)
