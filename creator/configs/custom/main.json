@@ -2,15 +2,15 @@
 	"resolution": 2,
 	"model": "ours_lite",
 	"scaling_lr": 0.003,
-	"preprocesspoints": 3,
-	"test_iteration": 30000,
+	"preprocesspoints": 1,
 	"densify": 2,
-	"densification_interval": 250,
-	"duration": 40,
+	"densification_interval": 200,
+	"duration": 299,
 	"rdpip": "train_ours_lite",
-	"section_size": 40,
-	"section_iterations": 30000,
+	"section_size": 10,
 	"densify_grad_threshold": 0.0002,
 	"max_init_points": 20000,
-	"iterations": 30000
+	"section_iterations": 7000,
+	"iterations": 7000,
+	"desicnt": 2
 }

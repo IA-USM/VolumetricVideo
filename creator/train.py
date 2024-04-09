@@ -235,9 +235,6 @@ def train(dataset, opt, pipe, saving_iterations, debug_from, densify=0, duration
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
 
-
-
-
             # Densification and pruning here
             
             if iteration < opt.densify_until_iter :

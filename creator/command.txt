@@ -5,3 +5,6 @@ python train_sections.py -s D:/datasets/plenoptic/flame_steak/colmap_0 -m output
 python unity_export_sections.py -m output/flame_0 --config configs/custom/main.json
 
 python test.py -s D:/datasets/plenoptic/flame_steak/colmap_0 -m output/flame_0 --config configs/custom/main.json
+
+
+python train_section.py -s D:/datasets/plenoptic/flame_steak/colmap_0 -m output/balletfull --config configs/custom/main.json

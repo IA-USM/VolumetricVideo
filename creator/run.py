@@ -1,8 +1,7 @@
-import sys
 import os
 
-source = "D:/capturas/cocina/output/colmap_1"
-model = "output/cocinawarp"
+source = "/media/pablo/Nuevo_vol/capturas/cocina/output/colmap_1"
+model = "output/cocina_warped"
 config = "configs/custom/main.json"
 total_duration = 299
 section_size = 10
