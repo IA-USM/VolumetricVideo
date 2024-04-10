@@ -172,7 +172,7 @@ class Scene:
                 starttime = int(starttime)
 
                 prev_pcd_path = os.path.join(os.path.dirname(self.model_path), "points", f"section_{section_id-1}.ply")
-                point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+                #point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
                 prev_pcd = fetchPly(prev_pcd_path)
                 
                 #print("Warping points from previous section to match the current ...")
@@ -186,10 +186,10 @@ class Scene:
                 # Create pcd from current sec
                 starttime = os.path.basename(args.source_path).split("_")[1]
                 starttime = int(starttime)
-                point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+                point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range, args.max_init_points)
                 self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
 #
-    def create_pcd_from_bins(self, source_path, starttime, time_range):
+    def create_pcd_from_bins(self, source_path, starttime, time_range, max_init_points=0):
 
         totalxyz = []
         totalrgb = []
@@ -209,6 +209,15 @@ class Scene:
         xyz = np.concatenate(totalxyz, axis=0)
         rgb = np.concatenate(totalrgb, axis=0)
         totaltime = np.concatenate(totaltime, axis=0)
+
+        # downsample points to max_init_points only for the first section
+        if max_init_points > 0 and xyz.shape[0] > max_init_points and time_range[0] == 0:
+            print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
+            idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
+            xyz = xyz[idx]
+            rgb = rgb[idx]
+            totaltime = totaltime[idx]
+        
         assert xyz.shape[0] == rgb.shape[0]  
         xyzt =np.concatenate( (xyz, totaltime), axis=1)     
         storePly(totalply_path, xyzt, rgb)
