@@ -63,7 +63,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     
     rbfbasefunction = trbfunction
 
-    time_range=[section_idx*section_size, (section_idx+1)*section_size]
+    time_range=[section_idx*section_size, (section_idx+1)*section_size+2]
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 

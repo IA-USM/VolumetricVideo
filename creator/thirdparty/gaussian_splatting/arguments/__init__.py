@@ -134,6 +134,8 @@ class OptimizationParams(ParamGroup):
         self.section_size = 50
         self.section_iterations = 5000
 
+        self.depth_regularization = True
+
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):
