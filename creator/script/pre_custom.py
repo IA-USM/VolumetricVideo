@@ -120,7 +120,7 @@ if __name__ == "__main__" :
     parser.add_argument("--endframe", default=60, type=int)
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=-1, type=int)
-    parser.add_argument("--depth", default=True, type=bool)
+    parser.add_argument("--depth", default=False, type=bool)
     
     args = parser.parse_args()
     videopath = args.source
@@ -165,10 +165,10 @@ if __name__ == "__main__" :
         
         if args.resize_width == -1:
             print("found images, copying them to 0.png, 1.png, ...")
-            #copy_frames(videopath, elements, output_path)
+            copy_frames(videopath, elements, output_path)
         else:
             print("found images, resizing and exporting them to 0.png, 1.png, ...")
-            #resize_frames(videopath, elements, w=args.resize_width)
+            resize_frames(videopath, elements, w=args.resize_width)
         extension = images_sample[0][-4:]
 
     else:
@@ -181,7 +181,7 @@ if __name__ == "__main__" :
     print("start preparing colmap image input")
     for offset in range(startframe, endframe):
         pass
-        #preparecolmapfolders(offset, extension=extension, output_path=output_path, depth = args.depth, pipe=pipe)
+        preparecolmapfolders(offset, extension=extension, output_path=output_path, depth = args.depth, pipe=pipe)
     
     # 3 - Run mapper on the first frame
     getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False)

@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore")
 import os
 import time
 
-def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_count=0):
+def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_count=0, last=False):
     print(f"Splat count {gaussians.get_xyz.shape[0]}")
     
     if args.unity_export_path == "":
@@ -60,7 +60,7 @@ def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_c
     chunk_count = (max_splat_count+args.chunk_size-1) // args.chunk_size
     
     # args.duration
-    if (time_range[1] == 120):
+    if (last):
         create_one_file_sections(save_path, max_splat_count=max_splat_count, max_chunk_count=chunk_count, frame_time=args.save_interval/args.fps, args=args)
     
     time2= time.time()
@@ -69,9 +69,28 @@ def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_c
 
     return order, splat_count
 
+def remove_outliers(xyz, threshold=3.5):
+    median = torch.median(xyz, dim=0).values
+    abs_deviation = torch.abs(xyz - median)
+    mad = torch.median(abs_deviation, dim=0).values
+    mask = abs_deviation / mad < threshold
+    xyz_filtered = xyz[mask.all(dim=1)]
+
+    return xyz_filtered
+
+def edit(gaussians):
+    xyz = gaussians.get_xyz
+
+    new_xyz = remove_outliers(xyz)
+    center = torch.mean(new_xyz, dim=0)
+
+    new_xyz = xyz - center
+    distances = torch.norm(new_xyz, dim=-1)
+    prune_mask =  (distances > 25.0).squeeze()
+    gaussians.prune_points_no_training(prune_mask)
 
 def run_conversion(dataset : ModelParams, iteration: int, 
-                   rgbfunction="rgbv1", args=None, prev_order=None, max_splat_count=0, time_range=None):
+                   rgbfunction="rgbv1", args=None, prev_order=None, max_splat_count=0, time_range=None, last=False):
     
     with torch.no_grad():
         
@@ -83,7 +102,9 @@ def run_conversion(dataset : ModelParams, iteration: int,
                                                            "point_cloud",
                                                            "iteration_" + str(iteration),
                                                            "point_cloud.ply"))
-        order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range)
+        
+        edit(gaussians)
+        order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range, last=last)
     
     return order, splat_count
 

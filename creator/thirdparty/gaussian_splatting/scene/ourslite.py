@@ -1048,6 +1048,20 @@ class GaussianModel:
                     group["params"][0] = nn.Parameter(group["params"][0][mask].requires_grad_(True))
                     optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
+    
+    def prune_points_no_training(self, mask):
+        valid_points_mask = ~mask
+        self._xyz = self._xyz[valid_points_mask]
+        self._features_dc = self._features_dc[valid_points_mask]
+        #self._features_rest = self._features_rest[valid_points_mask]
+        self._opacity = self._opacity[valid_points_mask]
+        self._scaling = self._scaling[valid_points_mask]
+        self._rotation = self._rotation[valid_points_mask]
+        self._trbf_center = self._trbf_center[valid_points_mask]
+        self._trbf_scale = self._trbf_scale[valid_points_mask]
+        self._motion = self._motion[valid_points_mask]
+        self._omega = self._omega[valid_points_mask]
+        
 
     def prune_points(self, mask):
         valid_points_mask = ~mask

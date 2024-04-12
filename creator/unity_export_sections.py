@@ -28,6 +28,9 @@ if __name__ == "__main__":
 
     for idx, section in enumerate(sorted_sections):
         
+        if idx==0:
+            continue
+
         time_range = [idx*args.section_size, (idx+1)*args.section_size]
 
         print(f" ----- EXPORTING SECTION {idx}-----")
@@ -48,7 +51,8 @@ if __name__ == "__main__":
             os.makedirs(section_outpath)
 
         prev_order, splat_count = run_conversion(model_extract, iteration, 
-                       rgbfunction=args.rgbfunction, args=args, prev_order=None, max_splat_count=max_splat_count, time_range=time_range)
+                       rgbfunction=args.rgbfunction, args=args, prev_order=None, 
+                       max_splat_count=max_splat_count, time_range=time_range, last = (idx == len(sorted_sections)-1))
         
         if splat_count > max_splat_count:
             max_splat_count = splat_count
