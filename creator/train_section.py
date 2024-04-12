@@ -50,6 +50,11 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
 
     first_iter = 0
 
+    if section_idx != 0:
+        # For color consistency between the last section and the current one
+        opt.feature_lr = opt.feature_lr/4
+        #opt.position_lr_init = opt.position_lr_init*2
+
     print("use model {}".format(dataset.model))
     GaussianModel = getmodel(dataset.model) # gmodel, gmodelrgbonly
     
@@ -63,7 +68,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     
     rbfbasefunction = trbfunction
 
-    time_range=[section_idx*section_size, (section_idx+1)*section_size]
+    # Time range with overlap
+    time_range=[section_idx*section_size, (section_idx+1)*section_size] #+ section_size//2]
+    section_size = time_range[1] - time_range[0]
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
@@ -150,7 +157,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
             depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
     
-    if (densify == 1 or  densify == 2): 
+    if (densify == 1 or  densify == 2) and section_idx==0: 
         zmask = gaussians._xyz[:,2] < 4.5  
         gaussians.prune_points(zmask)
         torch.cuda.empty_cache()
@@ -180,7 +187,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 viewpoint_cam = camindex[i]
                 if dataset.load2gpu_on_the_fly:
                     viewpoint_cam.load2device()
-                    
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
                 image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
@@ -191,7 +197,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
-
+                
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
                     loss = Ll1
@@ -259,7 +265,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
             flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, 
-                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds)
+                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds, init_round=section_idx==0)
             
             # guided sampling step
             if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #["camera_0002"] :#selectviews :  #["camera_0002"]:
@@ -403,10 +409,11 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     pcd_path = os.path.join(os.path.dirname(scene.model_path), "points")
     os.makedirs(pcd_path, exist_ok=True)
     
-    gaussians.save_pcd(os.path.join(pcd_path, f"section_{section_idx}.ply"), section_size = section_size) # implement
-
+    #gaussians.save_pcd(os.path.join(pcd_path, f"section_{section_idx}.ply"), section_size = section_size) # implement
+    
     # Save full ply
-    scene.save(iteration)
+    scene.save(iteration, save_end=True)
+
     
 if __name__ == "__main__":
     args, lp_extract, op_extract, pp_extract = getparser()
