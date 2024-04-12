@@ -36,8 +36,6 @@ import cv2
 import torch
 from PIL import Image
 
-from marigold.marigold_pipeline import MarigoldPipeline
-
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def extractframes(videopath, startframe=0, endframe=300, w=-1, output_path="dataset"):
@@ -132,6 +130,7 @@ if __name__ == "__main__" :
 
     pipe = None
     if args.depth:
+        from marigold.marigold_pipeline import MarigoldPipeline
         pipe = MarigoldPipeline.from_pretrained(
             "prs-eth/marigold-lcm-v1-0",
             torch_dtype=torch.float16
