@@ -27,7 +27,7 @@ import numpy as np
 import sys
 # Append the parent of the parent directory
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pointcloud_matcher import PointMatcher
+#from pointcloud_matcher import PointMatcher
 
 class Scene:
     # gaussians : GaussianModel
@@ -58,8 +58,8 @@ class Scene:
         self.test_cameras = {}
         raydict = {}
 
-        if args.use_same_points and section_id > 0:
-            self.matcher = PointMatcher(samples=3000)
+        #if args.use_same_points and section_id > 0:
+            #self.matcher = PointMatcher(samples=3000)
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
@@ -166,29 +166,45 @@ class Scene:
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
+        elif section_id > 0:
+            starttime = os.path.basename(args.source_path).split("_")[1]
+            starttime = int(starttime)
+
+            prev_pcd_path = os.path.join(os.path.dirname(self.model_path), "points", f"section_{section_id-1}.ply")
+            
+            point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
+            point_cloud_previous = fetchPly(prev_pcd_path)
+
+            point_cloud = self.mix_point_clouds(point_cloud_current, point_cloud_previous, blend= 0.5, total_points=args.max_init_points)
+
+            self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
         else:
-            if args.use_same_points and section_id > 0:
-                starttime = os.path.basename(args.source_path).split("_")[1]
-                starttime = int(starttime)
 
-                prev_pcd_path = os.path.join(os.path.dirname(self.model_path), "points", f"section_{section_id-1}.ply")
-                #point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
-                prev_pcd = fetchPly(prev_pcd_path)
-                
-                #print("Warping points from previous section to match the current ...")
-                #warped_points = self.matcher.match(prev_pcd.points, point_cloud_current.points)
-                #point_cloud = BasicPointCloud(points=warped_points, colors=prev_pcd.colors, normals=prev_pcd.normals, times=prev_pcd.times)
-                
-                #self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
-                self.gaussians.create_from_pcd(prev_pcd, self.cameras_extent)
+            self.gaussians.create_from_pcd(self.point_cloud, self.cameras_extent)
 
-            else:
-                # Create pcd from current sec
-                starttime = os.path.basename(args.source_path).split("_")[1]
-                starttime = int(starttime)
-                point_cloud = self.create_pcd_from_bins(args.source_path, starttime, time_range, args.max_init_points)
-                self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
-#
+    def mix_point_clouds(self, pcd1, pcd2, blend=0.5, total_points=10000):
+        
+        print("Blending previous and current point clouds")
+
+        pcd1_points = int(total_points * blend)
+        pcd2_points = total_points - pcd1_points
+
+        if (len(pcd1.points) < pcd1_points) or (len(pcd2.points) < pcd2_points) or ((len(pcd1.points) + len(pcd2.points)) < total_points):
+            print("Not enough points to blend, returning original pcd")
+            return pcd1
+        
+        pcd1_indices = np.random.choice(len(pcd1.points), pcd1_points, replace=False)
+        pcd2_indices = np.random.choice(len(pcd2.points), pcd2_points, replace=False)
+
+        new_pcd_points = np.concatenate([pcd1.points[pcd1_indices], pcd2.points[pcd2_indices]], axis=0)
+        new_pcd_colors = np.concatenate([pcd1.colors[pcd1_indices], pcd2.colors[pcd2_indices]], axis=0)
+        new_pcd_times = np.concatenate([pcd1.times[pcd1_indices], pcd2.times[pcd2_indices]], axis=0)
+        new_pcd_normals = np.concatenate([pcd1.normals[pcd1_indices], pcd2.normals[pcd2_indices]], axis=0)
+
+        new_pcd = BasicPointCloud(points=new_pcd_points, colors=new_pcd_colors, times=new_pcd_times, normals=new_pcd_normals)
+
+        return new_pcd
+
     def create_pcd_from_bins(self, source_path, starttime, time_range, max_init_points=0):
 
         totalxyz = []
@@ -210,8 +226,8 @@ class Scene:
         rgb = np.concatenate(totalrgb, axis=0)
         totaltime = np.concatenate(totaltime, axis=0)
 
-        # downsample points to max_init_points only for the first section
-        if max_init_points > 0 and xyz.shape[0] > max_init_points and time_range[0] == 0:
+        # downsample points to max_init_points
+        if max_init_points > 0 and xyz.shape[0] > max_init_points:
             print("Downsampling points from {} to {}.".format(xyz.shape[0], max_init_points))
             idx = np.random.choice(xyz.shape[0], max_init_points, replace=False)
             xyz = xyz[idx]

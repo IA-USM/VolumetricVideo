@@ -63,7 +63,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     
     rbfbasefunction = trbfunction
 
-    time_range=[section_idx*section_size, (section_idx+1)*section_size+2]
+    overlap = 2
+    time_range=[section_idx*section_size, (section_idx+1)*section_size+overlap]
+    section_size = section_size + overlap
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
@@ -159,7 +161,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     lasterems = 0
 
     for iteration in range(first_iter, iterations + 1):        
-        if iteration ==  opt.emsstart and section_idx == 0:
+        if iteration ==  opt.emsstart:
             flagems = 1 # start ems
 
         iter_start.record()
@@ -403,7 +405,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     pcd_path = os.path.join(os.path.dirname(scene.model_path), "points")
     os.makedirs(pcd_path, exist_ok=True)
     
-    gaussians.save_pcd(os.path.join(pcd_path, f"section_{section_idx}.ply"), section_size = section_size) # implement
+    gaussians.save_pcd(os.path.join(pcd_path, f"section_{section_idx}.ply"), section_size = section_size)
 
     # Save full ply
     scene.save(iteration)

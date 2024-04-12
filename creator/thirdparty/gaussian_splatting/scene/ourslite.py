@@ -548,15 +548,14 @@ class GaussianModel:
             pointtimes = torch.ones((self.get_xyz.shape[0],1), dtype=self.get_xyz.dtype, requires_grad=False, device="cuda") + 0
             trbfcenter = self.get_trbfcenter
             means3D = self.get_xyz
-
-            timestamp = 1
+            
+            timestamp = (section_size-1)/section_size
             trbfdistanceoffset = timestamp * pointtimes - trbfcenter
             tforpoly = trbfdistanceoffset.detach()
             xyz = means3D +  self._motion[:, 0:3] * tforpoly + self._motion[:, 3:6] * tforpoly * tforpoly + self._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
             rgb = self.get_features(tforpoly)
-            times = torch.ones((xyz.shape[0], 1)) * torch.tensor(timestamp)
+            times = torch.zeros((xyz.shape[0], 1))
             times = times.to(xyz.device)
-
             xyzt =torch.concatenate( (xyz, times), axis=1)     
             
             rgb = np.clip(rgb.detach().cpu().numpy(),0,1) * 255
