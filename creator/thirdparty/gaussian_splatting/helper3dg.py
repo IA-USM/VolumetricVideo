@@ -144,7 +144,14 @@ def gettestparse():
         print("args: " + str(args))
         
     return args, model.extract(args), pipeline.extract(args), multiview
-    
+
+def check_database_valid(path):
+    assert os.path.exists(path)
+    assert os.path.exists(os.path.join(path, "images.bin"))
+    assert os.path.exists(os.path.join(path, "cameras.bin"))
+    assert os.path.exists(os.path.join(path, "points3D.bin"))
+    assert os.path.exists(os.path.join(os.path.dirname(path), "input.db"))
+
 def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, startframe=0):
     
     folder = os.path.join(output_path, "colmap_" + str(offset))
@@ -184,11 +191,13 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
             newPoints3D = os.path.join(manualinputfolder, "points3D.bin") # create empty points3D.bin
             with open(newPoints3D, 'w') as f:
                 f.write("")
+        
+        check_database_valid(manualinputfolder)
 
         print("Starting triangulation")
         os.makedirs(os.path.join(distortedmodel, "0"), exist_ok=True)
         cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + os.path.join(distortedmodel,"0") \
-        + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"
+        + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"+ " --clear_points 1"
     else:
         cmd = (colmap_path + " mapper \
             --database_path " + dbfile + \
