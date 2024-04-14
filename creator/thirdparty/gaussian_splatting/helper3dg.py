@@ -185,12 +185,6 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
         source_folder = os.path.join(folder.replace(f"colmap_{offset}", f"colmap_{startframe}"), os.path.join("sparse","0"))
         if not os.path.exists(manualinputfolder):
             shutil.copytree(source_folder, manualinputfolder)
-
-        if(os.path.exists(os.path.join(manualinputfolder, "points3D.bin"))):
-            os.remove(os.path.join(manualinputfolder, "points3D.bin"))
-            newPoints3D = os.path.join(manualinputfolder, "points3D.bin") # create empty points3D.bin
-            with open(newPoints3D, 'w') as f:
-                f.write("")
         
         check_database_valid(manualinputfolder)
 
