@@ -121,6 +121,7 @@ if __name__ == "__main__" :
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=-1, type=int)
     parser.add_argument("--depth", default=False, type=bool)
+    parser.add_argument("--skip_to", default=0, type=int)
     
     args = parser.parse_args()
     videopath = args.source
@@ -144,7 +145,7 @@ if __name__ == "__main__" :
         print("Input path does not exist")
         quit()
 
-    # 1- Prepare frames
+    # 0- Prepare frames
     videoslist = glob.glob(os.path.join(videopath,"*.mp4"))
     extension = ".png"
 
@@ -163,29 +164,32 @@ if __name__ == "__main__" :
             print("No videos or images found")
             quit()
         
-        if args.resize_width == -1:
-            print("found images, copying them to 0.png, 1.png, ...")
-            copy_frames(videopath, elements, output_path)
-        else:
-            print("found images, resizing and exporting them to 0.png, 1.png, ...")
-            resize_frames(videopath, elements, w=args.resize_width)
+        if args.skip_to < 1:
+            if args.resize_width == -1:
+                print("found images, copying them to 0.png, 1.png, ...")
+                copy_frames(videopath, elements, output_path)
+            else:
+                print("found images, resizing and exporting them to 0.png, 1.png, ...")
+                resize_frames(videopath, elements, w=args.resize_width)
         extension = images_sample[0][-4:]
 
-    else:
+    elif args.skip_to < 1:
         for v in tqdm.tqdm(videoslist):
             print(f"start extracting {endframe-startframe} frames from videos")
             extractframes(v, startframe=startframe, endframe=endframe, w= args.resize_width, output_path=output_path)
             pass
-    
-    # 2- Create colmap folders for each frame, add images
+        
+    # 1- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
-    for offset in range(startframe, endframe):
-        pass
-        preparecolmapfolders(offset, extension=extension, output_path=output_path, depth = args.depth, pipe=pipe)
+    if args.skip_to < 2:
+        for offset in range(startframe, endframe):
+            preparecolmapfolders(offset, extension=extension, output_path=output_path, depth = args.depth, pipe=pipe)
     
-    # 3 - Run mapper on the first frame
-    getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False)
-
-    # 4- Run colmap per-frame, use the poses from first frame for all
-    for offset in range(startframe+1, endframe):
-        getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)
+    # 2 - Run mapper on the first frame
+    if args.skip_to < 3:
+        getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False)
+    
+    # 3- Run colmap per-frame, use the poses from first frame for all
+    if args.skip_to < 4:
+        for offset in range(startframe+1, endframe):
+            getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)
