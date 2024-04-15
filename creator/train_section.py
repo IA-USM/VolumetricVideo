@@ -44,8 +44,9 @@ from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
 
 
 def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
-                   rgbfunction="rgbv1", rdpip="v2", section_idx=0):
+                   rgbfunction="rgbv1", rdpip="v2", section_idx=0, stage = "train"):
     
+    # Scene, gaussians, and render function
     render, GRsetting, GRzer = getrenderpip(rdpip)
 
     first_iter = 0
@@ -63,13 +64,13 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     
     rbfbasefunction = trbfunction
 
-    overlap = 2
+    overlap = 0
     time_range=[section_idx*section_size, (section_idx+1)*section_size+overlap]
     section_size = section_size + overlap
 
     # every section -> timestamp [0,1]
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
-                    time_range=time_range, duration = duration)
+                    time_range=time_range, duration = duration, stage=stage)
 
     print("Training section {}".format(section_idx))
 
@@ -81,12 +82,19 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
     minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
     
-    gaussians.original_point_count = currentxyz.shape[0]
+    if stage == "harmonize" and section_idx > 0:
+        print("Harmonizing with section {}".format(section_idx-1))
+        ref_gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
+        # Load only overlapping frames
+        #time_range_ref = [section_idx*section_size-overlap, section_idx*section_size]
+        ref_gaussians.load_ply(os.path.join(args.model_path,
+                                                           "point_cloud",
+                                                           "iteration_" + str(dataset.interation),
+                                                           "point_cloud.ply"))
 
     if os.path.exists(opt.prevpath):
         print("load from " + opt.prevpath)
         reloadhelper(gaussians, opt, maxx, maxy, maxz,  minx, miny, minz)
-
 
     maxbounds = [maxx, maxy, maxz]
     minbounds = [minx, miny, minz]
@@ -146,7 +154,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
 
             
             depth = render_pkg["depth"]
-            slectemask = depth != 15.0 #why?
+            slectemask = depth != 15.0
 
             validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
             depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
@@ -185,10 +193,15 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
                 image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
+                gt_depth = viewpoint_cam.original_depth.float().cuda()
                 
                 if iteration% 1000 == 0:
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))
+                    torchvision.utils.save_image(gt_depth, os.path.join("debug",  f"gtdepth_{section_idx}_{iteration}.png"))
+                    
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
+                    torchvision.utils.save_image(render_pkg["depth"], os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
+                
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
