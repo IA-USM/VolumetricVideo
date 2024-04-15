@@ -174,7 +174,6 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
     if exit_code != 0:
         exit(exit_code)
 
-
     featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
     exit_code = os.system(featurematcher)
     if exit_code != 0:
@@ -187,7 +186,7 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
             shutil.copytree(source_folder, manualinputfolder)
         
         check_database_valid(manualinputfolder)
-
+        
         print("Starting triangulation")
         os.makedirs(os.path.join(distortedmodel, "0"), exist_ok=True)
         cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + os.path.join(distortedmodel,"0") \
@@ -204,6 +203,7 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
         logging.error(f"Failed with code {exit_code}. Exiting.")
         exit(exit_code)
 
+    # Undistort input images
     img_undist_cmd = f"{colmap_path}" + " image_undistorter --image_path " + inputimagefolder + " --input_path " + os.path.join(distortedmodel,"0")  + " --output_path " + folder  \
     + " --output_type COLMAP" 
     exit_code = os.system(img_undist_cmd)

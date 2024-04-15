@@ -50,7 +50,11 @@ def sigmoidv3(x):
 
 def PILtoTorch(pil_image, resolution):
     resized_image_PIL = pil_image.resize(resolution)
-    resized_image = torch.from_numpy(np.array(resized_image_PIL)) / 255.0
+    if (np.array(resized_image_PIL).dtype == np.uint8):
+        resized_image = torch.from_numpy(np.array(resized_image_PIL)) / 255.0
+    else:
+        resized_image = torch.from_numpy(np.array(resized_image_PIL)) / 65535.0
+    
     if len(resized_image.shape) == 3:
         return resized_image.permute(2, 0, 1)
     else:

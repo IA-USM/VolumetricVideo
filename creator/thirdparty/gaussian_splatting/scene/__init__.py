@@ -32,7 +32,7 @@ import sys
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap"):
+                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap", stage="train"):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -46,8 +46,8 @@ class Scene:
         self.refmodelpath = None
         self.current_section = section_id
         self.duration = duration
-
-        if load_iteration:
+        
+        if load_iteration or stage == "harmonize":
             if load_iteration == -1:
                 self.loaded_iter = searchForMaxIteration(os.path.join(self.model_path, "point_cloud"))
             else:
@@ -180,7 +180,6 @@ class Scene:
 
             self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
         else:
-
             self.gaussians.create_from_pcd(self.point_cloud, self.cameras_extent)
 
     def mix_point_clouds(self, pcd1, pcd2, blend=0.5, total_points=10000):
