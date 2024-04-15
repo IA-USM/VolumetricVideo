@@ -5,7 +5,7 @@
 	"preprocesspoints": 2,
 	"densify": 2,
 	"densification_interval": 200,
-	"duration": 299,
+	"duration": 59,
 	"rdpip": "train_ours_lite",
 	"section_size": 10,
 	"densify_grad_threshold": 0.0002,

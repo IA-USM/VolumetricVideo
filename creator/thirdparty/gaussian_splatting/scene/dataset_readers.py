@@ -36,6 +36,8 @@ class CameraInfo(NamedTuple):
     image: np.array
     image_path: str
     image_name: str
+    depth: np.array
+    depth_path: str
     width: int
     height: int
     near: float
@@ -76,7 +78,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, time_range=[0,50], offset=np.array([.0, .0, -2])):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, startime=0, time_range=[0,50], offset=np.array([.0, .0, -2]), include_depth= False):
     cam_infos = []
     totalcamname = []
     for idx, key in enumerate(cam_extrinsics): # first is cam20_ so we strictly sort by camera name
@@ -129,12 +131,20 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             image_name = os.path.basename(image_path).split(".")[0]
             image_path = image_path.replace("colmap_"+str(startime), "colmap_{}".format(j), 1)
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
+
             image = Image.open(image_path)
+
+            depth = None
+            if include_depth:
+                depth_path = image_path.replace("images", "depth")
+                depth = Image.open(depth_path)
+
             if j == (startime+ time_range[0]):
-                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, depth=depth, image_path=image_path, depth_path=depth_path ,image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
             else:
-                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, depth=depth, image_path=image_path, depth_path=depth_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
             cam_infos.append(cam_info)
+
     sys.stdout.write('\n')
     return cam_infos
 
@@ -830,7 +840,7 @@ def findOffset(path, starttime, duration):
     
     return offset
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], duration= 50, max_init_points=-1):
+def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_range=[0,50], duration= 50, max_init_points=-1, include_depth=False):
     duration_section = time_range[1]- time_range[0]
 
     totalply_path = os.path.join(path, "sparse/0/points3D_total.ply")
@@ -888,7 +898,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
     far = 100
     
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, 
-                                           images_folder=os.path.join(path, reading_dir), near=near, 
+                                           images_folder=os.path.join(path, reading_dir), near=near, include_depth=include_depth,
                                            far=far, startime=starttime, time_range=time_range, offset=np.array([.0, .0, -offset]))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
      

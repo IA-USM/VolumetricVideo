@@ -20,7 +20,7 @@ from kornia import create_meshgrid
 from helper_model import pix2ndc
 import random 
 class Camera(nn.Module):
-    def __init__(self, colmap_id, R, T, FoVx, FoVy, image, gt_alpha_mask,
+    def __init__(self, colmap_id, R, T, FoVx, FoVy, image, depth, gt_alpha_mask,
                  image_name, uid,
                  trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda", near=0.01, far=100.0, timestamp=0.0, rayo=None, rayd=None, rays=None, cxr=0.0,cyr=0.0,
                  ):
@@ -60,8 +60,12 @@ class Camera(nn.Module):
             self.image_height = image[1]
             self.original_image = None
         
-
-
+        if not isinstance(depth, tuple):
+            if "camera_" not in image_name:
+                self.original_depth = depth.clamp(0.0, 1.0).to(self.data_device)
+            else:
+                self.original_depth = depth.clamp(0.0, 1.0).half().to(self.data_device)
+        
         self.zfar = 100.0
         self.znear = 0.01  
 

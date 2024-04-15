@@ -77,7 +77,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
         cfg_log_f.write(str(Namespace(**vars(args))))
     
     
-
     currentxyz = gaussians._xyz
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
     minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
@@ -171,7 +170,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             pipe.debug = True
         if gaussians.rgbdecoder is not None:
             gaussians.rgbdecoder.train()
-
+        
         if opt.batch > 1:
             gaussians.zero_gradient_cache()
             timeindex = randint(0, section_size-1)

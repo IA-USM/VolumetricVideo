@@ -63,7 +63,8 @@ class Scene:
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
-                                                          multiview, time_range=time_range, duration = duration, max_init_points=args.max_init_points)
+                                                          multiview, time_range=time_range, duration = duration,
+                                                            max_init_points=args.max_init_points, include_depth = args.depth_regularization)
         elif loader == "dynerf" or loader == "dynerfvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Dynerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "technicolor" or loader == "technicolorvalid" :
