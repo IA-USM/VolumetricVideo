@@ -168,14 +168,20 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
     if not os.path.exists(distortedmodel):
         os.makedirs(distortedmodel)
 
-    featureextract = f"{colmap_path} feature_extractor --database_path " + dbfile+ " --image_path " + inputimagefolder
-
-    exit_code = os.system(featureextract)
+    ## Feature extraction
+    feat_extracton_cmd = colmap_path + f" feature_extractor --database_path {dbfile} --image_path {inputimagefolder} + \
+        --ImageReader.single_camera 1 \
+        --ImageReader.camera_model " + "OPENCV" + " \
+        --SiftExtraction.use_gpu 1"
+    exit_code = os.system(feat_extracton_cmd)
     if exit_code != 0:
         exit(exit_code)
 
-    featurematcher = f"{colmap_path} exhaustive_matcher --database_path " + dbfile
-    exit_code = os.system(featurematcher)
+    ## Feature matching
+    feat_matching_cmd = colmap_path + " exhaustive_matcher \
+        --database_path " + dbfile + "\
+        --SiftMatching.use_gpu 1"
+    exit_code = os.system(feat_matching_cmd)
     if exit_code != 0:
         exit(exit_code)
 
@@ -190,13 +196,13 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
         print("Starting triangulation")
         os.makedirs(os.path.join(distortedmodel, "0"), exist_ok=True)
         cmd = f"{colmap_path} point_triangulator --database_path "+   dbfile  + " --image_path "+ inputimagefolder + " --output_path " + os.path.join(distortedmodel,"0") \
-        + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"+ " --clear_points 1"
+        + " --input_path " + manualinputfolder + " --Mapper.ba_global_function_tolerance=0.000001"+ " --clear_points 1 --Mapper.multiple_models 0"
     else:
-        cmd = (colmap_path + " mapper \
-            --database_path " + dbfile + \
-            " --image_path "  + inputimagefolder + \
-            " --output_path "  + distortedmodel +\
-            " --Mapper.ba_global_function_tolerance=0.000001")
+        cmd = colmap_path + " mapper \
+        --database_path " + dbfile  + "\
+        --image_path "  + inputimagefolder +"\
+        --output_path "  + os.path.join(distortedmodel,"0") + "\
+        --Mapper.ba_global_function_tolerance=0.000001"
     
     exit_code = os.system(cmd)
     if exit_code != 0:

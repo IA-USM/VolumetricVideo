@@ -32,7 +32,7 @@ import sys
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap", stage="train"):
+                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap"):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -47,7 +47,7 @@ class Scene:
         self.current_section = section_id
         self.duration = duration
         
-        if load_iteration or stage == "harmonize":
+        if load_iteration:
             if load_iteration == -1:
                 self.loaded_iter = searchForMaxIteration(os.path.join(self.model_path, "point_cloud"))
             else:
@@ -57,13 +57,10 @@ class Scene:
         self.train_cameras = {}
         self.test_cameras = {}
         raydict = {}
-
-        #if args.use_same_points and section_id > 0:
-            #self.matcher = PointMatcher(samples=3000)
         
         if loader == "colmap" or loader == "colmapvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, 
-                                                          multiview, time_range=time_range, duration = duration,
+                                                            time_range=time_range, duration = duration,
                                                             max_init_points=args.max_init_points, include_depth = args.depth_regularization)
         elif loader == "dynerf" or loader == "dynerfvalid": # colmapvalid only for testing
             scene_info = sceneLoadTypeCallbacks["Dynerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
@@ -161,7 +158,6 @@ class Scene:
             for cam in self.test_cameras[resolution_scale]:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
         
-        # Load the point cloud, only section 0 can modify the point cloud
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",

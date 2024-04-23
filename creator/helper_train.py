@@ -115,7 +115,7 @@ def getmodel(model="oursfull"):
         raise NotImplementedError("model {} not implemented".format(model))
     return GaussianModel
 
-def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii):
+def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii, depth=None, gt_depth=None, Ll1_depth=None):
     if opt.reg == 1: # add optical flow loss
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + opt.regl * torch.sum(gaussians._motion) / gaussians._motion.shape[0]
     elif opt.reg == 0 :
@@ -140,6 +140,7 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii):
         mean = torch.mean(gaussians._xyz, dim=0, keepdim=True)
         varaince = (mean - gaussians._xyz)**2 #/ N
         loss = (1.0 - opt.lambda_dssim) * Ll1  + 0.0002*opt.lambda_dssim * torch.sum(varaince) / N
+            
     return loss 
 
 

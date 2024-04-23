@@ -52,7 +52,7 @@ def convert_set(gaussians, args, time_range=None, prev_order = None, max_splat_c
     duration = args.section_size
     
     for idx in tqdm(range(0, duration, args.save_interval)):
-        save_frame(idx, idx/duration, gaussians, order, save_path, args)
+        save_frame(idx, idx/(duration+args.section_overlap), gaussians, order, save_path, args)
         
     splat_count = gaussians.get_xyz.cpu().numpy().shape[0]
     
@@ -89,6 +89,29 @@ def edit(gaussians):
     prune_mask =  (distances > 25.0).squeeze()
     gaussians.prune_points_no_training(prune_mask)
 
+def cube(gaussians):
+    xyz = gaussians.get_xyz
+
+    x_range = [-13, 24]
+    y_range = [-4, 12]
+    #z_range = [8, 28]
+
+    # NOTE: SuperSplat is x-inverted and y-inverted
+    prune_mask_y =  (xyz[:,1] > y_range[0]) & (xyz[:,1] < y_range[1])
+    prune_mask_x =  (xyz[:,0] > x_range[0]) & (xyz[:,0] < x_range[1])
+    
+    prune_mask = prune_mask_x & prune_mask_y
+    #prune_mask = prune_mask & (xyz[:,1] > y_range[0])
+    #prune_mask = prune_mask & (xyz[:,1] < y_range[1])
+
+    #prune_mask = prune_mask & (xyz[:,2] > z_range[0])
+   # prune_mask = prune_mask & (xyz[:,2] < z_range[1])
+
+    prune_mask = prune_mask.squeeze()
+
+    gaussians.prune_points_no_training(~prune_mask)
+
+
 def run_conversion(dataset : ModelParams, iteration: int, 
                    rgbfunction="rgbv1", args=None, prev_order=None, max_splat_count=0, time_range=None, last=False):
     
@@ -103,7 +126,7 @@ def run_conversion(dataset : ModelParams, iteration: int,
                                                            "iteration_" + str(iteration),
                                                            "point_cloud.ply"))
         
-        edit(gaussians)
+        cube(gaussians)
         order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range, last=last)
     
     return order, splat_count

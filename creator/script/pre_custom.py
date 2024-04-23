@@ -27,7 +27,7 @@ import shutil
 import sys 
 import argparse
 sys.path.append(".")
-sys.path.append("Marigold")
+sys.path.append("Marigold-Video")
 from thirdparty.colmap.pre_colmap import * 
 from thirdparty.gaussian_splatting.helper3dg import getcolmapsinglen3d
 import ffmpeg
@@ -38,7 +38,7 @@ from PIL import Image
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-def extractframes(videopath, startframe=0, endframe=300, w=-1, output_path="dataset"):
+def extractframes(videopath, startframe=0, endframe=60, w=-1, output_path="dataset"):
     video = ffmpeg.input(videopath)
 
     if w == -1:
@@ -51,13 +51,17 @@ def extractframes(videopath, startframe=0, endframe=300, w=-1, output_path="data
 
     resize.output(os.path.join(outpath,"%d.png")).run()
 
-def preparecolmapfolders(offset=0, extension=".png", output_path="dataset"):
+def preparecolmapfolders(offset=0, extension=".png", output_path="dataset", depth=False, pipe=None):
     savedir = os.path.join(output_path, "colmap_" + str(offset))
     os.makedirs(savedir, exist_ok=True)
     input_savedir = os.path.join(savedir, "input")
     os.makedirs(input_savedir, exist_ok=True)
     
     cameras = [f for f in os.listdir(output_path) if os.path.isdir(os.path.join(output_path, f))]
+
+    if (depth):
+        depth_savedir = os.path.join(savedir, "depth")
+        os.makedirs(depth_savedir, exist_ok=True)
 
     for cam in cameras:
         if "colmap" in cam:
@@ -68,33 +72,21 @@ def preparecolmapfolders(offset=0, extension=".png", output_path="dataset"):
 
         shutil.copy(imagepath, imagesavepath)
 
-
-
-def predict_depth(offset=0, output_path="dataset"):
-        
-        reconstruction_dir = os.path.join(output_path, "colmap_" + str(offset))
-        images_dir = os.path.join(reconstruction_dir, "images")
-        depth_savedir = os.path.join(reconstruction_dir, "depth")
-        os.makedirs(depth_savedir, exist_ok=True)
-        
-        for image in tqdm.tqdm(os.listdir(images_dir)):
-            imagepath = os.path.join(images_dir, image)
-            cam = image[:-4]
+        if depth:
+            # predict depth
             input_img = Image.open(imagepath)
-            pipeline_output = pipe(input_img, denoising_steps=2, ensemble_size=2, show_progress_bar=False)
+            pipeline_output = pipe(input_img, input_depth=None, denoising_steps=1, ensemble_size=5, show_progress_bar=False)
             depth_out = pipeline_output.depth_np
-            depth_saveable = (depth_out * (2 **15-1)).astype("uint16")
+            depth_saveable = (depth_out * (2 **16-1)).astype("uint16")
             Image.fromarray(depth_saveable).save(os.path.join(depth_savedir, cam + ".png"))
+        
 
-
-def copy_frames(folder, elements, output_path, endframe=60):
+def copy_frames(folder, elements, output_path):
     for element in sorted(elements):
         frames = glob.glob(os.path.join(folder, element, "*.png"))
         frames += glob.glob(os.path.join(folder, element, "*.jpg"))
 
-        for i, frame in tqdm.tqdm(enumerate(sorted(frames)), total=endframe):
-            if i >= endframe:
-                break
+        for i, frame in enumerate(sorted(frames)):
             dest_name = os.path.join(folder, output_path, element, str(i) + frame[-4:])
             out_folder = os.path.join(folder, output_path, element)
             os.makedirs(out_folder, exist_ok=True)
@@ -108,10 +100,10 @@ def resize_frames(folder, elements, w=-1, endframe=60):
         frames = glob.glob(os.path.join(folder, element, "*.png"))
         frames += glob.glob(os.path.join(folder, element, "*.jpg"))
 
-        for i, frame in tqdm.tqdm(enumerate(sorted(frames)), total=endframe):
-            if i >= endframe:
+        for i, frame in enumerate(sorted(frames)):
+            if i>endframe:
                 break
-            
+
             folder_out = os.path.join(folder, output_path, element)
             os.makedirs(folder_out, exist_ok=True)
             newname = os.path.join(folder_out, str(i) + frame[-4:])
@@ -131,14 +123,24 @@ if __name__ == "__main__" :
     parser.add_argument("--endframe", default=60, type=int)
     parser.add_argument("--colmap_path", default="colmap", type=str)
     parser.add_argument("--resize_width", default=-1, type=int)
-    parser.add_argument("--depth", action="store_true")
+    parser.add_argument("--depth", default=False, type=bool)
     parser.add_argument("--skip_to", default=0, type=int)
+    parser.add_argument("--max_cameras", default=-1, type=int)
     
     args = parser.parse_args()
     videopath = args.source
 
     startframe = args.startframe
     endframe = args.endframe
+
+    pipe = None
+    if args.depth:
+        from marigold.marigold_pipeline import MarigoldPipeline
+        pipe = MarigoldPipeline.from_pretrained(
+            "prs-eth/marigold-lcm-v1-0",
+            torch_dtype=torch.float16
+        )
+        pipe.to("cuda")
 
     if startframe >= endframe:
         print("Start frame must smaller than end frame")
@@ -159,7 +161,11 @@ if __name__ == "__main__" :
         output_path = args.output
     
     if len(videoslist) == 0:
-        elements = [f for f in os.listdir(videopath) if os.path.isdir(os.path.join(videopath, f)) and "colmap_" not in f]
+        elements = [f for f in os.listdir(videopath) if os.path.isdir(os.path.join(videopath, f)) and "colmap_" not in f and "dataset" not in f]
+        
+        if ((args.max_cameras!=-1) and (len(elements) > args.max_cameras)):
+            elements = elements[:args.max_cameras]
+
         images_sample = glob.glob(os.path.join(videopath, elements[0], "*.png"))
         images_sample += glob.glob(os.path.join(videopath, elements[0], "*.jpg"))
         if len(images_sample) == 0:
@@ -169,7 +175,7 @@ if __name__ == "__main__" :
         if args.skip_to < 1:
             if args.resize_width == -1:
                 print("found images, copying them to 0.png, 1.png, ...")
-                copy_frames(videopath, elements, output_path, endframe=endframe)
+                copy_frames(videopath, elements, output_path)
             else:
                 print("found images, resizing and exporting them to 0.png, 1.png, ...")
                 resize_frames(videopath, elements, w=args.resize_width, endframe=endframe)
@@ -184,8 +190,8 @@ if __name__ == "__main__" :
     # 1- Create colmap folders for each frame, add images
     print("start preparing colmap image input")
     if args.skip_to < 2:
-        for offset in tqdm.tqdm(range(startframe, endframe)):
-            preparecolmapfolders(offset, extension=extension, output_path=output_path)
+        for offset in range(startframe, endframe):
+            preparecolmapfolders(offset, extension=extension, output_path=output_path, depth = args.depth, pipe=pipe)
     
     # 2 - Run mapper on the first frame
     if args.skip_to < 3:
@@ -193,19 +199,5 @@ if __name__ == "__main__" :
     
     # 3- Run colmap per-frame, use the poses from first frame for all
     if args.skip_to < 4:
-        for offset in tqdm.tqdm(range(startframe+1, endframe)):
+        for offset in range(startframe+1, endframe):
             getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)
-    
-    # 4- (Optional) Run depth estimation
-    pipe = None
-    if args.depth:
-        from marigold.marigold_pipeline import MarigoldPipeline
-        pipe = MarigoldPipeline.from_pretrained(
-            "prs-eth/marigold-lcm-v1-0",
-            variant="fp16",
-            torch_dtype=torch.float16
-        )
-        pipe.to("cuda")
-
-        for offset in tqdm.tqdm(range(startframe+1, endframe)):
-            predict_depth(offset, output_path)

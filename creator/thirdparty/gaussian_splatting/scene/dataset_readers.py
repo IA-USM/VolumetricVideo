@@ -135,6 +135,8 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             image = Image.open(image_path)
 
             depth = None
+            depth_path = None
+            
             if include_depth:
                 depth_path = image_path.replace("images", "depth")
                 depth = Image.open(depth_path)

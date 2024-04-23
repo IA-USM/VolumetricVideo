@@ -60,11 +60,13 @@ class Camera(nn.Module):
             self.image_height = image[1]
             self.original_image = None
         
-        if not isinstance(depth, tuple):
+        if not isinstance(depth, tuple) and depth is not None:
             if "camera_" not in image_name:
                 self.original_depth = depth.clamp(0.0, 1.0).to(self.data_device)
             else:
                 self.original_depth = depth.clamp(0.0, 1.0).half().to(self.data_device)
+        else:
+            self.original_depth = None
         
         self.zfar = 100.0
         self.znear = 0.01  

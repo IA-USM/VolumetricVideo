@@ -262,7 +262,7 @@ def test_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.
 
 
 
-def train_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):
+def train_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None, custom_timestep=None):
     """
     Render the scene. 
     
@@ -304,8 +304,10 @@ def train_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch
     trbfcenter = pc.get_trbfcenter
     trbfscale = pc.get_trbfscale
    
-
-    trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
+    if custom_timestep is not None:
+        trbfdistanceoffset = custom_timestep * pointtimes - trbfcenter
+    else:
+        trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
     trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
     trbfoutput = basicfunction(trbfdistance)
     
@@ -322,7 +324,7 @@ def train_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch
 
     rotations = pc.get_rotation(tforpoly) # to try use 
     colors_precomp = pc.get_features(tforpoly)
-
+    
     rendered_image, radii, depth = rasterizer(
         means3D = means3D,
         means2D = means2D,

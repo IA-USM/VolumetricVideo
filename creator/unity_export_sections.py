@@ -16,33 +16,36 @@ if __name__ == "__main__":
     sorted_sections = sorted(all_sections, key=lambda x: int(x.split("_")[-1]))
     
     args, model_extract, pp_extract, multiview =gettestparse()
-    args.scale = [4,-4,4]
-    args.pos_offset = [0,0,0]
+    args.scale = [0.1,0.1,0.1]
+    args.pos_offset = [0,0,0.5]
     args.rot_offset = [0,0,0]
-    args.save_interval = 2
-    args.save_name = "test3.v3d"
+    args.save_interval = 1
+    args.save_name = "test4.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     args.dynamic_others = True
+    args.fps= 30
+    args.section_overlap = 0 
     
     outpath = "test"
 
+    prev_order = None
+    max_splat_count = 0
+    
+    assert args.section_size % args.save_interval == 0
     for idx, section in enumerate(sorted_sections):
         
         if idx==0:
             continue
-
+        
         time_range = [idx*args.section_size, (idx+1)*args.section_size]
 
         print(f" ----- EXPORTING SECTION {idx}-----")
         print(f"Time range: {time_range}")
         
         iteration = searchForMaxIteration(os.path.join(section, "point_cloud"))
+        #iteration = 2000
         
-        model_extract.model_path = section
-        
-        if idx == 0:
-            prev_order = None
-            max_splat_count = 0
+        model_extract.model_path = section       
         
         section_outpath = os.path.join(outpath, f"section_{idx}")
 
@@ -51,8 +54,8 @@ if __name__ == "__main__":
             os.makedirs(section_outpath)
 
         prev_order, splat_count = run_conversion(model_extract, iteration, 
-                       rgbfunction=args.rgbfunction, args=args, prev_order=None, 
-                       max_splat_count=max_splat_count, time_range=time_range, last = (idx == len(sorted_sections)-1))
+                    rgbfunction=args.rgbfunction, args=args, prev_order=None, 
+                    max_splat_count=max_splat_count, time_range=time_range, last = (idx == len(sorted_sections)-1))
         
         if splat_count > max_splat_count:
             max_splat_count = splat_count

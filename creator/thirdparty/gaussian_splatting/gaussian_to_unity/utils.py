@@ -181,9 +181,15 @@ def normalize_chunks(chunks, chunk_bounds=None):
         bounds_min_expanded = chunk_bounds[:-1, 0, :]
         bounds_max_expanded = chunk_bounds[:-1, 1, :]
         bounds_min_expanded = bounds_min_expanded[:,np.newaxis,:]
-        bounds_max_expanded = bounds_max_expanded[:,np.newaxis,:]
-
+        bounds_max_expanded = bounds_max_expanded[:,np.newaxis,:]    
     
+    if (chunks.shape[0] < bounds_min_expanded.shape[0]):
+        bounds_min_expanded = bounds_min_expanded[:chunks.shape[0]]
+        bounds_max_expanded = bounds_max_expanded[:chunks.shape[0]]
+    elif(chunks.shape[0] > bounds_min_expanded.shape[0]): # TEMPORARY FIX: CHECK WHY THIS HAPPENS
+        bounds_min_expanded = np.concatenate((bounds_min_expanded, bounds_min_expanded[-1][np.newaxis,:]), axis=0)
+        bounds_max_expanded = np.concatenate((bounds_max_expanded, bounds_max_expanded[-1][np.newaxis,:]), axis=0)
+
     normalized = (chunks - bounds_min_expanded) / (bounds_max_expanded - bounds_min_expanded)
 
     return normalized, chunk_bounds
@@ -210,11 +216,12 @@ def create_chunks(data_in, gaussianCount, chunk_size, sh=False, predef_bounds=No
         normalized = normalized.reshape(-1, data_in.shape[1])
 
         # Include the rest of the data that does not fit in a chunk
-        remaining = data_in[n_chunks * chunk_size:].reshape(-1, data_in.shape[1])
-        remaining_norm, remaining_bounds = normalize(remaining)
+        if data_in.shape[0] > (n_chunks * chunk_size):
+            remaining = data_in[n_chunks * chunk_size:].reshape(-1, data_in.shape[1])
+            remaining_norm, remaining_bounds = normalize(remaining)
 
-        normalized = np.concatenate((normalized, remaining_norm), axis=0)
-        chunk_bounds = np.concatenate((chunk_bounds, remaining_bounds[np.newaxis,:,:]), axis=0)
+            normalized = np.concatenate((normalized, remaining_norm), axis=0)
+            chunk_bounds = np.concatenate((chunk_bounds, remaining_bounds[np.newaxis,:,:]), axis=0)
 
     else:
         chunks_array = data_in[:n_chunks * chunk_size].reshape(-1, chunk_size, data_in.shape[1], data_in.shape[2])
@@ -222,11 +229,12 @@ def create_chunks(data_in, gaussianCount, chunk_size, sh=False, predef_bounds=No
         normalized = normalized.reshape(-1, data_in.shape[1], data_in.shape[2])
     
         # Include the rest of the data that does not fit in a chunk
-        remaining = data_in[n_chunks * chunk_size:].reshape(-1, data_in.shape[1], data_in.shape[2])
-        remaining_norm, remaining_bounds = normalize_sh(remaining)
+        if data_in.shape[0] > (n_chunks * chunk_size):
+            remaining = data_in[n_chunks * chunk_size:].reshape(-1, data_in.shape[1], data_in.shape[2])
+            remaining_norm, remaining_bounds = normalize_sh(remaining)
 
-        normalized = np.concatenate((normalized, remaining_norm), axis=0)
-        chunk_bounds = np.concatenate((chunk_bounds, remaining_bounds[np.newaxis, :,:,:]), axis=0)
+            normalized = np.concatenate((normalized, remaining_norm), axis=0)
+            chunk_bounds = np.concatenate((chunk_bounds, remaining_bounds[np.newaxis, :,:,:]), axis=0)
 
     return normalized, chunk_bounds
 
@@ -569,6 +577,7 @@ def create_one_file_sections(basepath, max_splat_count=0, max_chunk_count=0, fra
     data.append(struct.pack('I', int(args.dynamic_others))) # Include dynamic rotations and scaling
     data.append(struct.pack('I', int(args.dynamic_color))) # Include dynamic opacity
     data.append(struct.pack('I', int(args.include_shs))) # If it has shs
+    data.append(struct.pack('I', int(args.section_size/args.save_interval))) # Do not interpolate period
     
     # Transforms
     data.append(struct.pack('f', args.pos_offset[0])) # Position offset x

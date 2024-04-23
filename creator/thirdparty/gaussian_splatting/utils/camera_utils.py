@@ -42,12 +42,16 @@ def loadCamv2(args, id, cam_info, resolution_scale):
         resolution = (int(orig_w / scale), int(orig_h / scale))
 
     resized_image_rgb = PILtoTorch(cam_info.image, resolution)
-    resized_depth = PILtoTorch(cam_info.depth, resolution)
+
+    gt_depth = None
+    if cam_info.depth is not None:
+        resized_depth = PILtoTorch(cam_info.depth, resolution)
+        gt_depth = resized_depth[0, ...]
 
     gt_image = resized_image_rgb[:3, ...]
     loaded_mask = None
 
-    gt_depth = resized_depth[0, ...]
+    
 
     if resized_image_rgb.shape[1] == 4:
         loaded_mask = resized_image_rgb[3:4, ...]
@@ -234,7 +238,6 @@ def loadCamnogt(args, id, cam_info, resolution_scale):
                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, 
                   image=resolution, gt_alpha_mask=loaded_mask,
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device, near=cam_info.near, far=cam_info.far, timestamp=cam_info.timestamp, rayo=rays_o, rayd=rays_d)
-
 
 
 def cameraList_from_camInfosv2(cam_infos, resolution_scale, args, ss=False):

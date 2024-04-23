@@ -60,7 +60,7 @@ class ModelParams(ParamGroup):
         self.sections = True
         self.max_init_points = 10000
         self.load2gpu_on_the_fly = False
-        self.depth_regularization = True
+        self.depth_regularization = False
 
         super().__init__(parser, "Loading Parameters", sentinel)
 
@@ -132,7 +132,9 @@ class OptimizationParams(ParamGroup):
         self.removescale = 5
         
         self.section_size = 50
+        self.section_overlap = 0
         self.section_iterations = 5000
+        self.harmonize_iterations= 1000
 
         super().__init__(parser, "Optimization Parameters")
 
