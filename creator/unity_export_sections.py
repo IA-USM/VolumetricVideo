@@ -31,11 +31,13 @@ if __name__ == "__main__":
     prev_order = None
     max_splat_count = 0
     
+    sorted_sections = sorted_sections[:3]
+    
     assert args.section_size % args.save_interval == 0
     for idx, section in enumerate(sorted_sections):
         
-        if idx==0:
-            continue
+        #if idx==0:
+       #     continue
         
         time_range = [idx*args.section_size, (idx+1)*args.section_size]
 

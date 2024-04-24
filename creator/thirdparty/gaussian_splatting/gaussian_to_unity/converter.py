@@ -70,7 +70,7 @@ def gaussian_timestep_to_unity(means3d: torch.tensor,
         # Hardcoded bounds until better solution
         dc =  np.clip((dc - dc_range[0]) / (dc_range[1] - dc_range[0]), 0, 1)
         opacity =  np.clip((opacity - opacity_range[0]) / (opacity_range[1] - opacity_range[0]), 0, 1)
-        
+                
         # dc: N, 1, 3 to N, 3
         if (dc.shape[1] == 1):
             dc = dc.squeeze(1)
