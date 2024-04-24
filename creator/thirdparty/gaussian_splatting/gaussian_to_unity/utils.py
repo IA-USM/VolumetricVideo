@@ -341,7 +341,7 @@ def create_chunks_static_asset(col_chunks, shs_chunks, basepath):
         f.write(packed_data.tobytes())
 
 def normalize_swizzle_rotation(wxyz):
-    normalized = np.divide(wxyz,np.linalg.norm(wxyz, axis=1).reshape(-1, 1))
+    normalized = np.divide(wxyz,np.linalg.norm(wxyz, axis=1).reshape(-1, 1)+ 1e-3)
     normalized = np.roll(normalized, -1)
     return normalized
 

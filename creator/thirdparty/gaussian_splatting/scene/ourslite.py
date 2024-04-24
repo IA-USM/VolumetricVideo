@@ -127,7 +127,6 @@ class GaussianModel:
         rotation =  self._rotation + delta_t*self._omega
         self.delta_t = delta_t
         return self.rotation_activation(rotation)
-    
 
 
     @property

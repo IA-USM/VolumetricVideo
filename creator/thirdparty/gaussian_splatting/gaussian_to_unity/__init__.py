@@ -1,10 +1,10 @@
 import torch
 import time 
-from scene.oursfull import GaussianModel
+from scene.ourslite import GaussianModel
 import numpy as np
 from helper_train import trbfunction
 from gaussian_to_unity.converter import gaussian_timestep_to_unity, gaussian_static_data_to_unity
-from gaussian_to_unity.utils import square_centered01, sigmoid
+from gaussian_to_unity.utils import square_centered01, sigmoid, normalize_swizzle_rotation
 
 def sigmoid(v):
     return 1.0 / (1.0 + torch.exp(-v))
@@ -28,7 +28,6 @@ def save_frame(idx, timestamp, pc : GaussianModel, order_indexes, basepath="outp
     trbfdistanceoffset = timestamp * pointtimes - trbfcenter
     trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
     trbfoutput = trbfunction(trbfdistance)
-
     
 
     pointopacity = square_centered01(sigmoid(pc._opacity))
@@ -42,6 +41,8 @@ def save_frame(idx, timestamp, pc : GaussianModel, order_indexes, basepath="outp
     means3d_final = means3D +  pc._motion[:, 0:3] * tforpoly + pc._motion[:, 3:6] * tforpoly * tforpoly + pc._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
     
     rotations_final = pc.get_rotation(tforpoly)
+    #rotations_final =  pc._rotation + tforpoly * pc._omega
+
     colors_final = pc.get_features(tforpoly)
     
     if idx==0:

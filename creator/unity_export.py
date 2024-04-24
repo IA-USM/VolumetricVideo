@@ -95,17 +95,12 @@ def cube(gaussians):
     x_range = [-13, 24]
     y_range = [-4, 12]
     #z_range = [8, 28]
-
+    
     # NOTE: SuperSplat is x-inverted and y-inverted
     prune_mask_y =  (xyz[:,1] > y_range[0]) & (xyz[:,1] < y_range[1])
     prune_mask_x =  (xyz[:,0] > x_range[0]) & (xyz[:,0] < x_range[1])
     
     prune_mask = prune_mask_x & prune_mask_y
-    #prune_mask = prune_mask & (xyz[:,1] > y_range[0])
-    #prune_mask = prune_mask & (xyz[:,1] < y_range[1])
-
-    #prune_mask = prune_mask & (xyz[:,2] > z_range[0])
-   # prune_mask = prune_mask & (xyz[:,2] < z_range[1])
 
     prune_mask = prune_mask.squeeze()
 
@@ -126,7 +121,7 @@ def run_conversion(dataset : ModelParams, iteration: int,
                                                            "iteration_" + str(iteration),
                                                            "point_cloud.ply"))
         
-        cube(gaussians)
+        #cube(gaussians)
         order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range, last=last)
     
     return order, splat_count

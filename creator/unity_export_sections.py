@@ -16,11 +16,11 @@ if __name__ == "__main__":
     sorted_sections = sorted(all_sections, key=lambda x: int(x.split("_")[-1]))
     
     args, model_extract, pp_extract, multiview =gettestparse()
-    args.scale = [0.1,0.1,0.1]
-    args.pos_offset = [0,0,0.5]
+    args.scale = [1,-1,1]
+    args.pos_offset = [0,0.7,-120]
     args.rot_offset = [0,0,0]
     args.save_interval = 1
-    args.save_name = "test4.v3d"
+    args.save_name = "ballett.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     args.dynamic_others = True
     args.fps= 30
