@@ -11,8 +11,7 @@
 	"section_overlap": 4,
 	"densify_grad_threshold": 0.0002,
 	"max_init_points": 15000,
-	"section_iterations": 3000,
-	"iterations": 3000,
-	"desicnt": 2,
-	"harmonize_iterations": 2000
+	"section_iterations": 5000,
+	"iterations": 5000,
+	"desicnt": 2
 }

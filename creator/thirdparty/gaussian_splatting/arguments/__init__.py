@@ -134,7 +134,7 @@ class OptimizationParams(ParamGroup):
         self.section_size = 50
         self.section_overlap = 0
         self.section_iterations = 5000
-        self.harmonize_iterations= 1000
+        self.harmonize= False
 
         super().__init__(parser, "Optimization Parameters")
 

@@ -45,185 +45,6 @@ from utils.system_utils import searchForMaxIteration
 from scene.cameras import Camera
 
 
-def harmonize_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
-                   rgbfunction="rgbv1", rdpip="v2", section_idx=0):
-    
-    # Scene, gaussians, and render function
-    render, GRsetting, GRzer = getrenderpip(rdpip)
-
-    first_iter = 0
-
-    print("use model {}".format(dataset.model))
-    GaussianModel = getmodel(dataset.model) # gmodel, gmodelrgbonly
-    
-    torch.cuda.empty_cache()
-
-    # Current gaussians
-    gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
-    gaussians.trbfslinit = -1*opt.trbfslinit # 
-    gaussians.preprocesspoints = opt.preprocesspoints 
-    gaussians.addsphpointsscale = opt.addsphpointsscale 
-    gaussians.raystart = opt.raystart
-
-    # Previous gaussians
-    prev_gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
-    prev_gaussians.trbfslinit = -1*opt.trbfslinit # 
-    prev_gaussians.preprocesspoints = opt.preprocesspoints 
-    prev_gaussians.addsphpointsscale = opt.addsphpointsscale 
-    prev_gaussians.raystart = opt.raystart
-
-    rbfbasefunction = trbfunction
-    
-    og_size = section_size
-    overlap = args.section_overlap
-    time_range = [section_idx*section_size, (section_idx+1)*section_size+overlap]
-    # Current    
-    scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, load_iteration=-1, time_range=time_range)
-    section_size = section_size + overlap
-
-    # Previous
-    loaded_iter = searchForMaxIteration(os.path.join(dataset.model_path + f"_{section_idx-1}", "point_cloud"))
-    prev_gaussians.load_ply(os.path.join(dataset.model_path + f"_{section_idx-1}",
-                                        "point_cloud",
-                                        "iteration_" + str(loaded_iter),
-                                        "point_cloud.ply"))
-
-    print("Harmonizing section {}".format(section_idx))
-
-    currentxyz = gaussians._xyz
-    maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
-    minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
-
-    gaussians.training_setup(opt)
-    
-    numchannel = 9 
-
-    bg_color = [1, 1, 1] if dataset.white_background else [0 for i in range(numchannel)]
-    background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
-
-    iter_start = torch.cuda.Event(enable_timing = True)
-    iter_end = torch.cuda.Event(enable_timing = True)
-
-    iterations = opt.harmonize_iterations
-
-    ema_loss_for_log = 0.0
-    first_iter = 0
-    progress_bar = tqdm(range(first_iter, iterations), desc="Section harmonize progress")
-    first_iter += 1
-
-    depthdict = {}
-    
-    trainCameras = scene.getTrainCameras()
-    if opt.batch > 1:
-        traincameralist = trainCameras.copy()
-        traincamdict = {}            
-        for i in range(0, section_size):
-            traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/section_size]
-    
-    if gaussians.ts is None :
-        H,W = traincameralist[0].image_height, traincameralist[0].image_width
-        gaussians.ts = torch.ones(1,1,H,W).cuda()
-                                    
-    depthdict = {}
-    validdepthdict = {}
-
-    with torch.no_grad():
-        timeindex = 0
-        viewpointset = traincamdict[timeindex]
-        for viewpoint_cam in viewpointset:
-            render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)            
-            
-            ratio = overlap/(og_size + overlap)
-            custom_timestep = (1 - ratio) + viewpoint_cam.timestamp
-            render_pkg_prev = render(viewpoint_cam, prev_gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer, custom_timestep=custom_timestep)
-            
-            _, depthH, depthW = render_pkg["depth"].shape
-
-            depth = render_pkg["depth"]
-            slectemask = depth != 15.0
-
-            validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
-            depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
-        
-
-    for iteration in range(first_iter, iterations + 1):        
-
-        iter_start.record()
-        gaussians.update_learning_rate(iteration)
-        
-        if (iteration - 1) == debug_from:
-            pipe.debug = True
-        if gaussians.rgbdecoder is not None:
-            gaussians.rgbdecoder.train()
-        
-        if opt.batch > 1:
-            gaussians.zero_gradient_cache()
-            timeindex = randint(0, overlap-1)
-            viewpointset = traincamdict[timeindex]
-            camindex = random.sample(viewpointset, opt.batch)
-
-            for i in range(opt.batch):
-                viewpoint_cam = camindex[i]
-                if dataset.load2gpu_on_the_fly:
-                    viewpoint_cam.load2device()
-                    
-                render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
-                image, depth, radii = render_pkg["render"], render_pkg["depth"], render_pkg["radii"]
-
-                ratio = overlap/(og_size + overlap)
-                custom_timestep = (1-ratio) + viewpoint_cam.timestamp 
-                render_pkg_prev = render(viewpoint_cam, prev_gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer, custom_timestep=custom_timestep)
-                image_prev, depth_prev, _ = render_pkg_prev["render"], render_pkg_prev["depth"], render_pkg_prev["radii"]
-                
-                if iteration% 1000 == 0 or iteration==1:      
-                    torchvision.utils.save_image(image, os.path.join("debug",  f"harmonize_render_{section_idx}_{iteration}.png"))
-                    torchvision.utils.save_image(depth/50, os.path.join("debug",  f"harmonize_depth_{section_idx}_{iteration}.png"))
-                    torchvision.utils.save_image(image_prev, os.path.join("debug",  f"render_prev_{section_idx}_{iteration}.png"))
-                    torchvision.utils.save_image(depth_prev/50, os.path.join("debug",  f"depth_prev_{section_idx}_{iteration}.png"))
-                    pass
-                
-                Ll1 = l2_loss(image, image_prev)
-                loss = getloss(opt, Ll1, ssim, image, image_prev, gaussians, radii) + 0.005 * l2_loss(depth, depth_prev)
-                
-                loss.backward()
-
-                if dataset.load2gpu_on_the_fly:
-                    viewpoint_cam.load2device("cpu")
-                
-                gaussians.cache_gradient()
-                gaussians.optimizer.zero_grad(set_to_none = True)
-
-            iter_end.record()
-            gaussians.set_batch_gradient(opt.batch)
-            # note we retrieve the correct gradient except the mask
-        else:
-            raise NotImplementedError("Batch size 1 is not supported")
-
-        with torch.no_grad():
-            # Progress bar
-            ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
-            if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
-                progress_bar.update(10)
-            if iteration == iterations:
-                progress_bar.close()
-
-            if (iteration in saving_iterations):
-                print("\n[ITER {}] Saving Gaussians".format(iteration))
-                scene.save(iteration)
-            
-            # Optimizer step
-            if iteration < iterations:
-                gaussians.optimizer.step()
-                gaussians.optimizer.zero_grad(set_to_none = True)
-    
-    # Save gaussians at the end of each section
-    print("\n[ITER {}] Saving harmonized Gaussians for section {}".format(iteration, section_idx))
-    print("Final Gaussian Count: ", gaussians._xyz.shape[0])
-    
-    # Save full ply
-    scene.save(iteration)
-
 def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
                    rgbfunction="rgbv1", rdpip="v2", section_idx=0):
     
@@ -243,10 +64,29 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     gaussians.addsphpointsscale = opt.addsphpointsscale 
     gaussians.raystart = opt.raystart
     
+    harmonize = opt.harmonize and section_idx>0
+
+    if harmonize:
+        # Previous gaussians
+        prev_gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
+        prev_gaussians.trbfslinit = -1*opt.trbfslinit # 
+        prev_gaussians.preprocesspoints = opt.preprocesspoints 
+        prev_gaussians.addsphpointsscale = opt.addsphpointsscale 
+        prev_gaussians.raystart = opt.raystart
+
+        loaded_iter = searchForMaxIteration(os.path.join(dataset.model_path + f"_{section_idx-1}", "point_cloud"))
+        prev_gaussians.load_ply(os.path.join(dataset.model_path + f"_{section_idx-1}",
+                                        "point_cloud",
+                                        "iteration_" + str(loaded_iter),
+                                        "point_cloud.ply"))
+
+    
     rbfbasefunction = trbfunction
 
-    overlap = 4
+    og_size = section_size
+    overlap = args.section_overlap
     time_range = [section_idx*section_size, (section_idx+1)*section_size+overlap]
+    valid_compare_range = [section_idx*section_size, section_idx*section_size+overlap]
     section_size = section_size + overlap
 
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
@@ -366,12 +206,23 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 #gt_depth = viewpoint_cam.original_depth.float().cuda()
                 
                 if iteration% 1000 == 0:
-                    torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))
-                    #torchvision.utils.save_image(gt_depth, os.path.join("debug",  f"gtdepth_{section_idx}_{iteration}.png"))
-                    
+                    torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
-                    torchvision.utils.save_image(render_pkg["depth"], os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
+                    torchvision.utils.save_image(render_pkg["depth"]/50, os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
                 
+
+                # Every few iterations show the model the previous section as gt
+                if harmonize and (iteration % 4 == 0) and (timeindex < args.overlap):
+                    
+                    ratio = overlap/(og_size + overlap)
+                    custom_timestep = (1 - ratio) + viewpoint_cam.timestamp
+                    render_pkg_prev = render(viewpoint_cam, prev_gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer, custom_timestep=custom_timestep)
+                    
+                    if iteration% 1000 == 0:
+                        torchvision.utils.save_image(render_pkg_prev["render"], os.path.join("debug",  f"{iteration}_compare1.png"))
+                        torchvision.utils.save_image(image, os.path.join("debug",  f"{iteration}_compare2.png"))
+                    
+                    gt_image = render_pkg_prev["render"]
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
@@ -598,12 +449,6 @@ if __name__ == "__main__":
     train_section(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, 
                                                            densify=args.densify, section_size=args.section_size, duration=args.duration, rgbfunction=args.rgbfunction, 
                                                           rdpip=args.rdpip, section_idx=args.section_idx)
-    
-    if (args.section_idx > 0 and args.harmonize_iterations > 0):
-        # Harmonize stage
-        harmonize_section(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, 
-                                                        densify=args.densify, section_size=args.section_size, duration=args.duration, rgbfunction=args.rgbfunction, 
-                                                        rdpip=args.rdpip, section_idx=args.section_idx)
     
     # All done
     print("\nTraining complete.")
