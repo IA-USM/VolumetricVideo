@@ -211,10 +211,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
                     torchvision.utils.save_image(render_pkg["depth"]/50, os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
-                
 
                 # Every few iterations show the model the previous section as gt
-                if harmonize and (iteration % 4 == 0) and (timeindex < args.overlap):
+                if harmonize and (iteration % 3 == 0) and (timeindex < opt.section_overlap):
                     
                     ratio = overlap/(og_size + overlap)
                     custom_timestep = (1 - ratio) + viewpoint_cam.timestamp
@@ -231,8 +230,11 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
                 
                 depth_loss = 0
-                if opt.regularize_depth:
-                    depth_loss = min(1 - pearson_corrcoef(-gt_depth, render_pkg["depth"]))
+                if dataset.depth_regularization:
+                    gt_depth_flat = gt_depth.reshape(-1)
+                    render_depth_flat = render_pkg["depth"][0].reshape(-1)
+
+                    depth_loss = 1 - pearson_corrcoef(render_depth_flat, gt_depth_flat)
 
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)

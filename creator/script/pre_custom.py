@@ -65,7 +65,7 @@ def estimate_depth(offset, output_path="dataset", pipe=None):
         pipeline_output = pipe(input_img, denoising_steps=3, ensemble_size=2, show_progress_bar=False)
         depth_out = pipeline_output.depth_np
         depth_saveable = (depth_out * (2 **16-1)).astype("uint16")
-        Image.fromarray(depth_saveable).save(os.path.join(depth_savedir, cam + ".png"))
+        Image.fromarray(depth_saveable).save(os.path.join(depth_savedir, cam))
     
 
 def preparecolmapfolders(offset=0, extension=".png", output_path="dataset"):

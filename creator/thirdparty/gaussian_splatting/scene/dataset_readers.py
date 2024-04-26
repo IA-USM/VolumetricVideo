@@ -139,7 +139,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             
             if include_depth:
                 depth_path = image_path.replace("images", "depth")
-                depth = Image.open(depth_path)
+                depth = Image.open(depth_path+".png") #
 
             if j == (startime+ time_range[0]):
                 cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, depth=depth, image_path=image_path, depth_path=depth_path ,image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-(startime+time_range[0]))/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)

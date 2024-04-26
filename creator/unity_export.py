@@ -92,8 +92,8 @@ def edit(gaussians):
 def cube(gaussians):
     xyz = gaussians.get_xyz
 
-    x_range = [-13, 24]
-    y_range = [-4, 12]
+    x_range = [-20, 30]
+    y_range = [-9, 12]
     #z_range = [8, 28]
     
     # NOTE: SuperSplat is x-inverted and y-inverted
@@ -121,7 +121,7 @@ def run_conversion(dataset : ModelParams, iteration: int,
                                                            "iteration_" + str(iteration),
                                                            "point_cloud.ply"))
         
-        #cube(gaussians)
+        cube(gaussians)
         order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range, last=last)
     
     return order, splat_count

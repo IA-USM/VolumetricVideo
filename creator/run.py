@@ -1,7 +1,7 @@
 import os
 
-source = "D:/capturas/cocina/output/colmap_1"
-model = "output/cocina_blended"
+source = "D:/capturas/cocina/dataset3/colmap_1"
+model = "output/cocina_depth"
 config = "configs/custom/main.json"
 total_duration = 299
 section_size = 10

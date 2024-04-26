@@ -20,19 +20,18 @@ if __name__ == "__main__":
     args.pos_offset = [0,0.7,-120]
     args.rot_offset = [0,0,0]
     args.save_interval = 1
-    args.save_name = "ballett.v3d"
+    args.save_name = "cocina_depth.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     args.dynamic_others = True
     args.fps= 30
-    args.section_overlap = 0 
+    args.section_overlap = 4
     
     outpath = "test"
 
     prev_order = None
     max_splat_count = 0
     
-    sorted_sections = sorted_sections[:3]
-    
+    sorted_sections = sorted_sections[:2]
     assert args.section_size % args.save_interval == 0
     for idx, section in enumerate(sorted_sections):
         
