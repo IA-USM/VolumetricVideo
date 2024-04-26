@@ -58,10 +58,10 @@ def estimate_depth(offset, output_path="dataset", pipe=None):
     os.makedirs(depth_savedir, exist_ok=True)
 
     # predict depth
-    images = os.distdir(os.path.join(output_path, "colmap_" + str(offset), "images"))
+    images = os.listdir(os.path.join(output_path, "colmap_" + str(offset), "images"))
 
     for cam in images:
-        input_img = Image.open(cam)
+        input_img = Image.open(os.path.join(output_path, "colmap_" + str(offset), "images", cam))
         pipeline_output = pipe(input_img, denoising_steps=3, ensemble_size=2, show_progress_bar=False)
         depth_out = pipeline_output.depth_np
         depth_saveable = (depth_out * (2 **16-1)).astype("uint16")
@@ -189,8 +189,8 @@ if __name__ == "__main__" :
             pass
         
     # 1- Create colmap folders for each frame, add images
-    print("start preparing colmap image input")
     if args.skip_to < 2:
+        print("start preparing colmap image input")
         for offset in range(startframe, endframe):
             preparecolmapfolders(offset, extension=extension, output_path=output_path)
     
@@ -204,7 +204,7 @@ if __name__ == "__main__" :
             getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)
     
     # 4- Estimate depth on frames
-    if args.depth and args.skip_to < 4:
+    if args.depth and args.skip_to < 5:
         from marigold.marigold_pipeline import MarigoldPipeline
         pipe = MarigoldPipeline.from_pretrained(
             "prs-eth/marigold-lcm-v1-0",
@@ -212,5 +212,5 @@ if __name__ == "__main__" :
         )
         pipe.to("cuda")
 
-        for offset in range(startframe, endframe):
+        for offset in tqdm.tqdm(range(startframe, endframe), total=endframe-startframe):
             estimate_depth(offset, output_path=output_path, pipe=pipe)

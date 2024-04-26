@@ -44,6 +44,8 @@ from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
 from utils.system_utils import searchForMaxIteration
 from scene.cameras import Camera
 
+from torchmetrics import PearsonCorrCoef
+from torchmetrics.functional.regression import pearson_corrcoef
 
 def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
                    rgbfunction="rgbv1", rdpip="v2", section_idx=0):
@@ -203,7 +205,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
                 image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
-                #gt_depth = viewpoint_cam.original_depth.float().cuda()
+                gt_depth = viewpoint_cam.original_depth.float().cuda()
                 
                 if iteration% 1000 == 0:
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
@@ -223,9 +225,14 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                         torchvision.utils.save_image(image, os.path.join("debug",  f"{iteration}_compare2.png"))
                     
                     gt_image = render_pkg_prev["render"]
+                    gt_depth = render_pkg_prev["depth"]
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
+                
+                depth_loss = 0
+                if opt.regularize_depth:
+                    depth_loss = min(1 - pearson_corrcoef(-gt_depth, render_pkg["depth"]))
 
                 if opt.reg == 2:
                     Ll1 = l2_loss(image, gt_image)
@@ -234,7 +241,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     Ll1 = rel_loss(image, gt_image)
                     loss = Ll1
                 else:
-                    Ll1 = l1_loss(image, gt_image)
+                    Ll1 = l1_loss(image, gt_image) + depth_loss * 0.05
                     loss = getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii)
 
                 if flagems == 1:

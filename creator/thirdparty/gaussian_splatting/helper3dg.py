@@ -219,7 +219,6 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
                 max_folder = r
         source_folder = os.path.join(distortedmodel, max_folder)
         shutil.rmtree(os.path.join(distortedmodel, "0"))
-        # Rename to '0'
         os.rename(source_folder, os.path.join(distortedmodel, "0"))
         
     # Undistort input images
