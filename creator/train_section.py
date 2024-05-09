@@ -205,7 +205,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 render_pkg = render(viewpoint_cam, gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer)
                 image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg)
                 gt_image = viewpoint_cam.original_image.float().cuda()
-                gt_depth = viewpoint_cam.original_depth.float().cuda()
                 
                 if iteration% 1000 == 0:
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
@@ -231,6 +230,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                 
                 depth_loss = 0
                 if dataset.depth_regularization:
+                    gt_depth = viewpoint_cam.original_depth.float().cuda()
                     gt_depth_flat = gt_depth.reshape(-1)
                     render_depth_flat = render_pkg["depth"][0].reshape(-1)
 

@@ -1,8 +1,8 @@
 import os
 
-source = "D:/capturas/cocina/dataset3/colmap_1"
-model = "output/cocina_depth"
-config = "configs/custom/main.json"
+source = "D:/capturas/voley/dataset/colmap_1"
+model = "output/volley_new"
+config = "configs/custom/volley.json"
 total_duration = 299
 section_size = 10
 sections = total_duration // section_size

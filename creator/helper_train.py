@@ -200,7 +200,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 if flag < opt.desicnt:
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold, init_round=init_round)
+                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
                 else:
@@ -268,11 +268,11 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 if flag < opt.desicnt:
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold, init_round=init_round)
+                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
                 else:
-                    if iteration < 7000 and init_round: # defalt 7000. 
+                    if iteration < 7000: # defalt 7000. 
                         prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
                         gaussians.prune_points(prune_mask)
                         torch.cuda.empty_cache()

@@ -39,14 +39,14 @@ from PIL import Image
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def extractframes(videopath, startframe=0, endframe=60, w=-1, output_path="dataset"):
-    video = ffmpeg.input(videopath)
+    video = ffmpeg.input(videopath, ss="00:40", t="10")
 
     if w == -1:
         resize = video
     else:
         resize = video.filter('scale', w, -1)
     
-    outpath = os.path.join(output_path, videopath.replace(".mp4", ""))
+    outpath = os.path.join(output_path, os.path.basename(videopath).replace(".MOV", ""))
     os.makedirs(outpath, exist_ok=True)
 
     resize.output(os.path.join(outpath,"%d.png")).run()
@@ -151,7 +151,7 @@ if __name__ == "__main__" :
         shutil.rmtree(args.output, ignore_errors=True)
 
     # 0- Prepare frames
-    videoslist = glob.glob(os.path.join(videopath,"*.mp4"))
+    videoslist = glob.glob(os.path.join(videopath,"*.MOV"))
     extension = ".png"
 
     # Create an output path in the same folder if not specified

@@ -106,6 +106,16 @@ def cube(gaussians):
 
     gaussians.prune_points_no_training(~prune_mask)
 
+def sphere(gaussians):
+    xyz = gaussians.get_xyz
+
+    center = torch.tensor([2.02,1.13,293.5]).to(xyz.device)
+    radius = 5
+    
+    distances = torch.norm(xyz - center, dim=-1)
+    prune_mask =  (distances < radius).squeeze()
+    gaussians.prune_points_no_training(~prune_mask)
+
 
 def run_conversion(dataset : ModelParams, iteration: int, 
                    rgbfunction="rgbv1", args=None, prev_order=None, max_splat_count=0, time_range=None, last=False):
@@ -121,7 +131,8 @@ def run_conversion(dataset : ModelParams, iteration: int,
                                                            "iteration_" + str(iteration),
                                                            "point_cloud.ply"))
         
-        cube(gaussians)
+        #cube(gaussians)
+        sphere(gaussians)
         order, splat_count = convert_set(gaussians, args, prev_order=prev_order, max_splat_count=max_splat_count, time_range=time_range, last=last)
     
     return order, splat_count
