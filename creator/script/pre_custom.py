@@ -131,6 +131,7 @@ if __name__ == "__main__" :
     parser.add_argument("--skip_to", default=0, type=int)
     parser.add_argument("--max_cameras", default=-1, type=int)
     parser.add_argument("--hard_reset", action= "store_true", default=False)
+    parser.add_argument("--feature_matcher", default="sift", type=str)
     
     args = parser.parse_args()
     videopath = args.source
@@ -201,7 +202,7 @@ if __name__ == "__main__" :
     # 3- Run colmap per-frame, use the poses from first frame for all
     if args.skip_to < 4:
         for offset in range(startframe+1, endframe):
-            getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe)
+            getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe, args=args)
     
     # 4- Estimate depth on frames
     if args.depth and args.skip_to < 5:
