@@ -1052,7 +1052,6 @@ class GaussianModel:
         valid_points_mask = ~mask
         self._xyz = self._xyz[valid_points_mask]
         self._features_dc = self._features_dc[valid_points_mask]
-        #self._features_rest = self._features_rest[valid_points_mask]
         self._opacity = self._opacity[valid_points_mask]
         self._scaling = self._scaling[valid_points_mask]
         self._rotation = self._rotation[valid_points_mask]
@@ -1060,7 +1059,21 @@ class GaussianModel:
         self._trbf_scale = self._trbf_scale[valid_points_mask]
         self._motion = self._motion[valid_points_mask]
         self._omega = self._omega[valid_points_mask]
+    
+    def blend_points(self, other_gaussians, self_mask, other_mask):
+        self.prune_points_no_training(self_mask)
+        other_gaussians.prune_points_no_training(other_mask)
         
+        self._xyz = torch.cat((self._xyz, other_gaussians._xyz), dim=0)
+        self._features_dc = torch.cat((self._features_dc, other_gaussians._features_dc), dim=0)
+        self._opacity = torch.cat((self._opacity, other_gaussians._opacity), dim=0)
+        self._scaling = torch.cat((self._scaling, other_gaussians._scaling), dim=0)
+        self._rotation = torch.cat((self._rotation, other_gaussians._rotation), dim=0)
+        self._trbf_center = torch.cat((self._trbf_center, other_gaussians._trbf_center), dim=0)
+        self._trbf_scale = torch.cat((self._trbf_scale, other_gaussians._trbf_scale), dim=0)
+        self._motion = torch.cat((self._motion, other_gaussians._motion), dim=0)
+        self._omega = torch.cat((self._omega, other_gaussians._omega), dim=0)
+
 
     def prune_points(self, mask):
         valid_points_mask = ~mask
