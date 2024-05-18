@@ -19,6 +19,10 @@ import shutil
 import logging
 
 sys.path.append("./thirdparty/gaussian_splatting")
+sys.path.append("./deep-image-matching/src")
+sys.path.append("../creator")
+
+
 
 from thirdparty.gaussian_splatting.utils.general_utils import safe_state
 from argparse import ArgumentParser, Namespace
@@ -152,7 +156,7 @@ def check_database_valid(path):
     assert os.path.exists(os.path.join(path, "points3D.bin"))
     assert os.path.exists(os.path.join(os.path.dirname(path), "input.db"))
 
-def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, startframe=0, **kwargs):
+def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, startframe=0, feature_matcher = "sift"):
     
     folder = os.path.join(output_path, "colmap_" + str(offset))
     assert os.path.exists(folder)
@@ -166,9 +170,8 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
         os.makedirs(distortedmodel)
 
     ## Feature extraction
-    feature_extractor = kwargs.get("feature_matcher", "sift")
 
-    if feature_extractor == "sift":
+    if feature_matcher == "sift":
 
         feat_extracton_cmd = colmap_path + f" feature_extractor --database_path {dbfile} --image_path {inputimagefolder} + \
             --ImageReader.camera_model " + "OPENCV" + " \
@@ -186,14 +189,27 @@ def getcolmapsinglen3d(output_path, offset, colmap_path="colmap", manual=True, s
         if exit_code != 0:
             exit(exit_code)
     
-    elif feature_extractor == "superpoint":
+    elif feature_matcher == "superpoint":
         cmd = "python deep-image-matching/main.py --images " + inputimagefolder + " --pipeline superpoint+lightglue" + \
-        " --config deep-image-matching/config/superpoint+lightglue.yaml"
-        dbfile = os.path.join(folder, "results_superpoint+lightglue_matching_lowres_quality_high", "database.db")
+        " --config deep-image-matching/config/superpoint+lightglue.yaml" + " --camera_options deep-image-matching/config/cameras.yaml"
+        dbfile_sp = os.path.join(folder, "results_superpoint+lightglue_matching_lowres_quality_high", "database.db")
+        distortedmodel_sp = os.path.join(folder, "results_superpoint+lightglue_matching_lowres_quality_high", "reconstruction")
 
         exit_code = os.system(cmd)
         if exit_code != 0:
             exit(exit_code)
+
+        out_dir = os.path.join(distortedmodel, "0")
+        os.makedirs(out_dir, exist_ok=True)
+
+        shutil.copy(dbfile_sp, dbfile)
+        for f in os.listdir(distortedmodel_sp):
+            shutil.move(os.path.join(distortedmodel_sp, f), out_dir) # distortedmodel
+        
+        #if not os.path.exists(os.path.join(distortedmodel, "0")):
+        #    first_rec = os.listdir(distortedmodel)[0]
+        #    shutil.move(os.path.join(distortedmodel, first_rec), os.path.join(distortedmodel, "0"))
+
     
     if manual:
         # Copy reconstruction from first frame

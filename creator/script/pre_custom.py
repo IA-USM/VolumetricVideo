@@ -28,6 +28,9 @@ import sys
 import argparse
 sys.path.append(".")
 sys.path.append("Marigold")
+
+#sys.path.append("deep-image-matching")
+
 from thirdparty.colmap.pre_colmap import * 
 from thirdparty.gaussian_splatting.helper3dg import getcolmapsinglen3d
 import ffmpeg
@@ -197,12 +200,12 @@ if __name__ == "__main__" :
     
     # 2 - Run mapper on the first frame
     if args.skip_to < 3:
-        getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False)
+        getcolmapsinglen3d(output_path, startframe, colmap_path=args.colmap_path, manual=False, feature_matcher=args.feature_matcher)
     
     # 3- Run colmap per-frame, use the poses from first frame for all
     if args.skip_to < 4:
         for offset in range(startframe+1, endframe):
-            getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe, args=args)
+            getcolmapsinglen3d(output_path, offset, colmap_path=args.colmap_path, manual=True, startframe=startframe, feature_matcher=args.feature_matcher)
     
     # 4- Estimate depth on frames
     if args.depth and args.skip_to < 5:
