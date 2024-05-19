@@ -1,5 +1,5 @@
 from thirdparty.gaussian_splatting.helper3dg import gettestparse
-from unity_export import run_conversion
+from unity_export import UnityExporter
 from thirdparty.gaussian_splatting.utils.system_utils import searchForMaxIteration
 import glob
 import os
@@ -20,16 +20,18 @@ if __name__ == "__main__":
     args.pos_offset = [0,0.7,-293]
     args.rot_offset = [0,0,0]
     args.save_interval = 1
-    args.save_name = "physio2.v3d"
+    args.save_name = "cocina.v3d"
     args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     args.dynamic_others = True
-    args.fps= 30
+    args.fps= 20
     args.section_overlap = 0
     
     outpath = "move2"
 
     prev_order = None
     max_splat_count = 0
+
+    ue = UnityExporter()
     
     #sorted_sections = sorted_sections[:2]
     assert args.section_size % args.save_interval == 0
@@ -53,10 +55,7 @@ if __name__ == "__main__":
         args.unity_export_path = section_outpath
         if not os.path.exists(section_outpath):
             os.makedirs(section_outpath)
-
-        prev_order, splat_count = run_conversion(model_extract, iteration, 
-                    rgbfunction=args.rgbfunction, args=args, prev_order=None, 
-                    max_splat_count=max_splat_count, time_range=time_range, last = (idx == len(sorted_sections)-1))
         
-        if splat_count > max_splat_count:
-            max_splat_count = splat_count
+        ue.run_conversion(model_extract, iteration,
+            rgbfunction=args.rgbfunction, args=args, last = (idx == len(sorted_sections)-1))
+        

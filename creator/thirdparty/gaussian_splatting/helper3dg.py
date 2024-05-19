@@ -126,6 +126,9 @@ def gettestparse():
 
     parser.add_argument("--unity_export_path", type=str, default ="")
 
+    parser.add_argument("--edit_shape", default="cube", type=str) # Sphere, Cube, Cylinder, None
+    parser.add_argument("--static_enviroment", action="store_true", default=True)
+
     args = get_combined_args(parser)
 
     print("Rendering " + args.model_path)
