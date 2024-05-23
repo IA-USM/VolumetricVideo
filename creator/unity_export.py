@@ -93,15 +93,15 @@ class UnityExporter:
 
         gaussians.prune_points_no_training(~prune_mask) 
 
-    def cilinder(self, gaussians, center = [2.02,1.13,293.5], radius = 5, height = 10):
+    def cilinder(self, gaussians, center = [2.02,1.13,293.5], radius = 5, y1 = -5, y2 = 5):
         xyz = gaussians.get_xyz
-        
+
         center = torch.tensor(center).to(xyz.device)
-        distances = torch.norm(xyz - center, dim=-1)
-        prune_mask =  (distances < radius).squeeze()
-        
-        prune_mask = prune_mask & (xyz[:,2] > center[2] - height/2) & (xyz[:,2] < center[2] + height/2)
-        
+        distances_xz = torch.norm(xyz[:, [0, 2]] - center[[0, 2]], dim=-1)
+        prune_mask =  (distances_xz < radius).squeeze()
+
+        prune_mask = prune_mask & (xyz[:,1] > center[1] + y1) & (xyz[:,1] < center[1] + y2)
+
         return prune_mask
     
     def cube(self, gaussians, x_range = [-18, 25], y_range = [-6, 12]):
@@ -132,10 +132,11 @@ class UnityExporter:
 
         center = [2, 0, 19.6]
         radius = 9.65
-        height = 10
+        y1 = -10
+        y2 = 10
 
-        dynamic_mask = ~self.cilinder(gaussians, center = center, radius = radius, height = height)
-        env_mask = self.cilinder(environment, center = center, radius = radius, height = height)
+        dynamic_mask = ~self.cilinder(gaussians, center = center, radius = radius, y1 = y1, y2 = y2)
+        env_mask = self.cilinder(environment, center = center, radius = radius, y1 = y1, y2 = y2 )
 
         gaussians.blend_points(environment, dynamic_mask, env_mask)
 
