@@ -29,6 +29,7 @@ import time
 from scene.oursfull import GaussianModel
 from utils.sh_utils import eval_sh
 from utils.graphics_utils import getProjectionMatrixCV, focal2fov, fov2focal
+from gsplat import rasterization
 
 
 
@@ -337,6 +338,95 @@ def train_ours_lite(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch
 
     return {"render": rendered_image,
             "viewspace_points": screenspace_points,
+            "visibility_filter" : radii > 0,
+            "radii": radii,
+            "opacity": opacity,
+            "depth": depth}
+
+
+def train_ours_lite_gsplat(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, custom_timestep=None, GRzer=None, GRsetting=None):
+    """
+    Render the scene. 
+    
+    Background tensor (bg_color) must be on GPU!
+    """
+
+    # Set up rasterization configuration
+    tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
+    tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
+
+    focal_length_x = viewpoint_camera.image_width / (2 * tanfovx)
+    focal_length_y = viewpoint_camera.image_height / (2 * tanfovy)
+    K = torch.tensor(
+        [
+            [focal_length_x, 0, viewpoint_camera.image_width / 2.0],
+            [0, focal_length_y, viewpoint_camera.image_height / 2.0],
+            [0, 0, 1],
+        ],
+        device="cuda",
+    )
+    
+    means3D = pc.get_xyz
+    pointopacity = pc.get_opacity
+    pointtimes = torch.ones((pc.get_xyz.shape[0],1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0 #
+
+    trbfcenter = pc.get_trbfcenter
+    trbfscale = pc.get_trbfscale
+   
+    if custom_timestep is not None:
+        trbfdistanceoffset = custom_timestep * pointtimes - trbfcenter
+    else:
+        trbfdistanceoffset = viewpoint_camera.timestamp * pointtimes - trbfcenter
+    trbfdistance =  trbfdistanceoffset / torch.exp(trbfscale) 
+    trbfoutput = basicfunction(trbfdistance)
+    
+    opacity = pointopacity * trbfoutput  # - 0.5
+    pc.trbfoutput = trbfoutput
+
+    cov3D_precomp = None
+
+    scales = pc.get_scaling * scaling_modifier
+
+    shs = None
+    tforpoly = trbfdistanceoffset.detach()
+    means3D = means3D +  pc._motion[:, 0:3] * tforpoly + pc._motion[:, 3:6] * tforpoly * tforpoly + pc._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+
+    rotations = pc.get_rotation(tforpoly) # to try use 
+    colors_precomp = pc.get_features(tforpoly)
+
+    " ---- "
+    viewmat = viewpoint_camera.world_view_transform.transpose(0, 1) # [4, 4]
+    sh_degree = pc.active_sh_degree
+
+    colors_precomp = colors_precomp[None].permute(1,0,2)
+    
+    render_colors, render_alphas, info = rasterization(
+        means=means3D,  # [N, 3]
+        quats=rotations,  # [N, 4]
+        scales=scales,  # [N, 3]
+        opacities=opacity.squeeze(-1),  # [N,]
+        colors=colors_precomp,
+        viewmats=viewmat[None],  # [1, 4, 4]
+        Ks=K[None],  # [1, 3, 3]
+        backgrounds=bg_color[None],
+        width=int(viewpoint_camera.image_width),
+        height=int(viewpoint_camera.image_height),
+        packed=False,
+        sh_degree=sh_degree,
+        render_mode= "RGB+D"
+    )
+    # [1, H, W, 3] -> [3, H, W]
+    rendered_image = render_colors[0].permute(2, 0, 1)[:,:,0:3]
+    depth = render_colors[0].permute(2, 0, 1)[:,:,3]
+    
+    radii = info["radii"].squeeze(0) # [N,]
+    try:
+        info["means2d"].retain_grad() # [1, N, 2]
+    except:
+        pass
+
+    return {"render": rendered_image,
+            "viewspace_points": info["means2d"],
             "visibility_filter" : radii > 0,
             "radii": radii,
             "opacity": opacity,

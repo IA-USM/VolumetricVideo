@@ -1337,9 +1337,17 @@ class GaussianModel:
 
         torch.cuda.empty_cache()
 
-    def add_densification_stats(self, viewspace_point_tensor, update_filter):
-        self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
-        self.denom[update_filter] += 1
+    def add_densification_stats(self, viewspace_point_tensor, update_filter, width, height):
+        grad = viewspace_point_tensor.grad.squeeze(0) # [N, 2]
+        # Normalize the gradient to [-1, 1] screen size
+        grad[:, 0] *= width * 0.5
+        grad[:, 1] *= height * 0.5
+        self.xyz_gradient_accum[update_filter] += torch.norm(grad[update_filter,:2], dim=-1, keepdim=True)
+        self.denom[update_filter] += 1  
+    
+    #def add_densification_stats(self, viewspace_point_tensor, update_filter):
+     #   self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
+      #  self.denom[update_filter] += 1
 
     def addgaussians(self, baduvidx, viewpoint_cam, depthmap, gt_image, numperay=3, ratioend=2, trbfcenter=0.5,depthmax=None,shuffle=False):
         def pix2ndc(v, S):

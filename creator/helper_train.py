@@ -62,6 +62,12 @@ def getrenderpip(option="train_ours_full"):
 
         return train_ours_lite, GaussianRasterizationSettings, GaussianRasterizer
     
+    elif option == "train_ours_lite_gsplat":
+        from thirdparty.gaussian_splatting.renderer import train_ours_lite_gsplat
+        from gsplat import rasterization
+
+        return train_ours_lite_gsplat, None, rasterization
+    
     elif option == "test_ours_full":
         from thirdparty.gaussian_splatting.renderer import test_ours_full
         from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
@@ -103,7 +109,7 @@ def getrenderpip(option="train_ours_full"):
         from forward_lite import GaussianRasterizer  
         return test_ours_litess,  GaussianRasterizationSettings, GaussianRasterizer
     else:
-        raise NotImplementedError("Rennder {} not implemented".format(option))
+        raise NotImplementedError("Render {} not implemented".format(option))
     
 def getmodel(model="oursfull"):
     if model == "ours_full":

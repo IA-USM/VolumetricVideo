@@ -301,7 +301,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             # Densification and pruning here
             if iteration < opt.densify_until_iter:
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter, image.shape[2], image.shape[1])
             flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, 
                                     viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds)
             
@@ -433,7 +433,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     radii = torch.cat((radii, torch.zeros(totalNnewpoints).cuda(0)), dim=0)
                     viewspace_point_tensor = torch.cat((viewspace_point_tensor, torch.zeros(totalNnewpoints, 3).cuda(0)), dim=0)
 
-
+            mem = torch.cuda.max_memory_allocated() / 1024**3
+            print(f"Max memory used: {mem:.2f} GB")
+            
             # Optimizer step
             if iteration < iterations:
                 gaussians.optimizer.step()
