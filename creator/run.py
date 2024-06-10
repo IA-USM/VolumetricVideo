@@ -1,10 +1,10 @@
 import os
 
-source = "/media/pablo/Nuevo_vol/capturas/cocina/dataset/colmap_1"
-model = "output/cocina_dim"
+source = "/home/pablo/single4d/sav/dataset/colmap_0"
+model = "output/singleview"
 config = "configs/custom/main.json"
-total_duration = 297
-section_size = 10
+total_duration = 12
+section_size = 6
 sections = total_duration // section_size
 
 for i in range(0, sections-1):

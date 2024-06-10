@@ -832,8 +832,12 @@ def findOffset(path, starttime, duration):
     print("Finding offset for z axis...")
     min_z = 0
     for i in range(starttime, starttime + duration):
-        thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
-        xyz, _, _ = read_points3D_binary(thisbin_path)
+        try:
+            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, _, _ = read_points3D_binary(thisbin_path)
+        except:
+            thistxt_path = os.path.join(path, "sparse/0/points3D.txt").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, _, _ = read_points3D_text(thistxt_path)
         min_z = min(min_z, np.min(xyz[:, 2]))
 
     offset = 0
@@ -865,8 +869,13 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, multiview=False, time_ra
     totalrgb = []
     totaltime = []
     for i in range(starttime + time_range[0], starttime + time_range[1]):
-        thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
-        xyz, rgb, _ = read_points3D_binary(thisbin_path)
+        try:
+            thisbin_path = os.path.join(path, "sparse/0/points3D.bin").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_binary(thisbin_path)
+        except:
+            thistxt_path = os.path.join(path, "sparse/0/points3D.txt").replace("colmap_"+ str(starttime), "colmap_" + str(i), 1)
+            xyz, rgb, _ = read_points3D_text(thistxt_path)
+        
         totalxyz.append(xyz)
         totalrgb.append(rgb)
         totaltime.append(np.ones((xyz.shape[0], 1)) * (i-starttime- time_range[0]) / duration_section)

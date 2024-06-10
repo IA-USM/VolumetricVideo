@@ -408,7 +408,7 @@ def train_ours_lite_gsplat(viewpoint_camera, pc : GaussianModel, pipe, bg_color 
         colors=colors_precomp,
         viewmats=viewmat[None],  # [1, 4, 4]
         Ks=K[None],  # [1, 3, 3]
-        backgrounds=bg_color[None],
+        backgrounds=None,
         width=int(viewpoint_camera.image_width),
         height=int(viewpoint_camera.image_height),
         packed=False,
@@ -416,8 +416,8 @@ def train_ours_lite_gsplat(viewpoint_camera, pc : GaussianModel, pipe, bg_color 
         render_mode= "RGB+D"
     )
     # [1, H, W, 3] -> [3, H, W]
-    rendered_image = render_colors[0].permute(2, 0, 1)[:,:,0:3]
-    depth = render_colors[0].permute(2, 0, 1)[:,:,3]
+    rendered_image = render_colors[0].permute(2, 0, 1)[:3]
+    depth = render_colors[0].permute(2, 0, 1)[3][None]
     
     radii = info["radii"].squeeze(0) # [N,]
     try:

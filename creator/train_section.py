@@ -171,10 +171,10 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
             depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
     
-    if (densify == 1 or  densify == 2): 
-        zmask = gaussians._xyz[:,2] < 4.5  
-        gaussians.prune_points(zmask)
-        torch.cuda.empty_cache()
+    #if (densify == 1 or  densify == 2): 
+   #     zmask = gaussians._xyz[:,2] < 4.5  
+   #     gaussians.prune_points(zmask)
+   #     torch.cuda.empty_cache()
     
     selectedlength = 2
     lasterems = 0
@@ -433,8 +433,8 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     radii = torch.cat((radii, torch.zeros(totalNnewpoints).cuda(0)), dim=0)
                     viewspace_point_tensor = torch.cat((viewspace_point_tensor, torch.zeros(totalNnewpoints, 3).cuda(0)), dim=0)
 
-            mem = torch.cuda.max_memory_allocated() / 1024**3
-            print(f"Max memory used: {mem:.2f} GB")
+            #mem = torch.cuda.max_memory_allocated() / 1024**3
+            #print(f"Max memory used: {mem:.2f} GB")
             
             # Optimizer step
             if iteration < iterations:

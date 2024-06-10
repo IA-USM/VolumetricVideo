@@ -20,8 +20,8 @@ if __name__ == "__main__":
     args.pos_offset = [0,0.7,-293]
     args.rot_offset = [0,0,0]
     args.save_interval = 1
-    args.save_name = "cocina.v3d"
-    args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
+    args.save_name = "test.v3d"
+    #args.audio_path = "D:/spacetime-entrenados/birth/audio.wav"
     args.dynamic_others = True
     args.fps= 20
     args.section_overlap = 0
