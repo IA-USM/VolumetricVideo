@@ -164,7 +164,6 @@ class UnityExporter:
                 
                 self.edit(self.environment, args)
             
-            #cube(gaussians)
             self.edit(gaussians, args)
 
             if args.static_enviroment and self.environment is not None:

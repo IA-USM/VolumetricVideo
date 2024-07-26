@@ -25,13 +25,8 @@ import torch
 from random import randint
 import random 
 import sys 
-import uuid
-import time 
-import json
 
 import torchvision
-import numpy as np 
-import torch.nn.functional as F
 from tqdm import tqdm
 
 sys.path.append("./thirdparty/gaussian_splatting")
@@ -90,7 +85,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     time_range = [section_idx*section_size, (section_idx+1)*section_size+overlap]
     valid_compare_range = [section_idx*section_size, section_idx*section_size+overlap]
     section_size = section_size + overlap
-
+    
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
                     time_range=time_range, duration = duration)
 
