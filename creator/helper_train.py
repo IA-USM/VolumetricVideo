@@ -191,7 +191,7 @@ def removeminmax(gaussians, maxbounds, minbounds):
 
 def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, 
                      radii, viewspace_point_tensor, flag, traincamerawithdistance=None, 
-                     maxbounds=None, minbounds=None): 
+                     maxbounds=None, minbounds=None, dataset=None): 
     if densify == 1: # n3d 
         if iteration < opt.densify_until_iter :
             if iteration ==  8001 : # 8001
@@ -247,16 +247,20 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
+                    
                     scene.recordpoints(iteration, "after densify")
                 else:
                     prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
+                
+                gaussians.prune_to_square_shape()
+                gaussians.sort_into_grid(dataset, True)
                     
-            if iteration % 3000 == 0 :
-                print("reset opacity")
-                gaussians.reset_opacity()
+            #if iteration % 3000 == 0 :
+           #     print("reset opacity")
+           #     gaussians.reset_opacity()
         #else:
             #if iteration % 1000 == 500:
            #     zmask = gaussians._xyz[:,2] < 4.5  # for stability  

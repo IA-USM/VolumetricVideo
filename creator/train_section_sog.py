@@ -28,6 +28,9 @@ import sys
 
 import torchvision
 from tqdm import tqdm
+from copy import deepcopy
+from omegaconf import OmegaConf
+
 
 sys.path.append("./thirdparty/gaussian_splatting")
 
@@ -37,13 +40,16 @@ from thirdparty.gaussian_splatting.scene import Scene
 from argparse import Namespace
 from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
 from utils.system_utils import searchForMaxIteration
+from utils.image_utils import psnr
 from scene.cameras import Camera
 
-from torchmetrics import PearsonCorrCoef
 from torchmetrics.functional.regression import pearson_corrcoef
 
+from compression.compression_exp import run_compressions, run_decompressions
+
+
 def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, section_size = 25, duration=50,
-                   rgbfunction="rgbv1", rdpip="v2", section_idx=0):
+                   rgbfunction="rgbv1", rdpip="v2", section_idx=0, compression_iterations=[], compression_cfg_path=None):
     
     # Scene, gaussians, and render function
     render, GRsetting, GRzer = getrenderpip(rdpip)
@@ -52,10 +58,12 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
 
     print("use model {}".format(dataset.model))
     GaussianModel = getmodel(dataset.model) # gmodel, gmodelrgbonly
+
+    disable_xyz_log_activation = opt.disable_xyz_log_activation
     
     torch.cuda.empty_cache()
 
-    gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
+    gaussians = GaussianModel(dataset.sh_degree, rgbfunction, disable_xyz_log_activation=disable_xyz_log_activation)
     gaussians.trbfslinit = -1*opt.trbfslinit # 
     gaussians.preprocesspoints = opt.preprocesspoints 
     gaussians.addsphpointsscale = opt.addsphpointsscale 
@@ -94,7 +102,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     with open(os.path.join(scene.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
     
-    
     currentxyz = gaussians._xyz
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])
     minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
@@ -109,6 +116,10 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     gaussians.training_setup(opt)
     
     numchannel = 9 
+
+    if dataset.sorting_enabled:
+        gaussians.prune_to_square_shape()
+        gaussians.sort_into_grid(dataset, True)
 
     bg_color = [1, 1, 1] if dataset.white_background else [0 for i in range(numchannel)]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -241,11 +252,30 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     Ll1 = l1_loss(image, gt_image) + depth_loss * 0.05
                     loss = getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii)
 
+                if opt.lambda_neighbor > 0:
+                    nb_losses = []
+                    attr_getter_fn = gaussians.get_activated_attr_flat if opt.neighbor_loss_activated else gaussians.get_attr_flat
+                    weights = {"xyz": opt.xyz_neighbor_weight, 
+                               "features_dc": opt.features_dc_neighbor_weight, 
+                               "opacity": opt.opacity_neighbor_weight, 
+                               "scaling": opt.scaling_neighbor_weight, 
+                               "rotation": opt.rotation_neighbor_weight}
+                    
+                    weight_sum = sum(weights.values())
+                    for attr_name, attr_weight in weights.items():
+                        if attr_weight > 0:
+                            nb_losses.append(gaussians.neighborloss_2d(attr_getter_fn(attr_name), opt) * attr_weight / weight_sum)
+                    
+                    nb_loss = opt.lambda_neighbor * sum(nb_losses)
+                else:
+                    nb_loss = torch.tensor(0.0)
+                
                 if flagems == 1:
                     if viewpoint_cam.image_name not in lossdiect:
                         lossdiect[viewpoint_cam.image_name] = loss.item()
                         ssimdict[viewpoint_cam.image_name] = ssim(image.clone().detach(), gt_image.clone().detach()).item()
                 
+                loss += nb_loss
                 loss.backward()
 
                 if dataset.load2gpu_on_the_fly:
@@ -284,7 +314,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
+                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}, Nb loss: {nb_loss.item():.{7}f}"})
                 progress_bar.update(10)
             if iteration == iterations:
                 progress_bar.close()
@@ -292,13 +322,16 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving initial Gaussians".format(iteration))
                 scene.save(iteration)
+                print(f"ITER {iteration} PSNR:  {psnr(image, gt_image)}")
             
             # Densification and pruning here
             if iteration < opt.densify_until_iter:
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter, image.shape[2], image.shape[1])
+            
             flag = controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filter, radii, 
-                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds)
+                                    viewspace_point_tensor, flag,  traincamerawithdistance=None, maxbounds=maxbounds,minbounds=minbounds, dataset=dataset)
+            
             
             # guided sampling step
             if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #["camera_0002"] :#selectviews :  #["camera_0002"]:
@@ -428,6 +461,9 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     radii = torch.cat((radii, torch.zeros(totalNnewpoints).cuda(0)), dim=0)
                     viewspace_point_tensor = torch.cat((viewspace_point_tensor, torch.zeros(totalNnewpoints, 3).cuda(0)), dim=0)
 
+                    gaussians.prune_to_square_shape()
+                    gaussians.sort_into_grid(dataset, True)
+
             #mem = torch.cuda.max_memory_allocated() / 1024**3
             #print(f"Max memory used: {mem:.2f} GB")
             
@@ -454,7 +490,7 @@ if __name__ == "__main__":
     
     train_section(lp_extract, op_extract, pp_extract, args.save_iterations, args.debug_from, 
                                                            densify=args.densify, section_size=args.section_size, duration=args.duration, rgbfunction=args.rgbfunction, 
-                                                          rdpip=args.rdpip, section_idx=args.section_idx)
+                                                          rdpip=args.rdpip, section_idx=args.section_idx, compression_iterations= args.compression_iterations, compression_cfg_path=args.compression_config_path)
     
     # All done
     print("\nTraining complete.")
