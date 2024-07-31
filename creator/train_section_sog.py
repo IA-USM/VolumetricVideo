@@ -69,9 +69,10 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     gaussians.addsphpointsscale = opt.addsphpointsscale 
     gaussians.raystart = opt.raystart
     
-    harmonize = opt.harmonize and section_idx>0
+    use_prev = True
 
-    if harmonize:
+    prev_gaussians = None
+    if use_prev and section_idx > 0:
         # Previous gaussians
         prev_gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
         prev_gaussians.trbfslinit = -1*opt.trbfslinit # 
@@ -84,18 +85,18 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                                         "point_cloud",
                                         "iteration_" + str(loaded_iter),
                                         "point_cloud.ply"))
+        opt.desicnt = 1
+        opt.densification_interval = 2000
 
     
     rbfbasefunction = trbfunction
 
     og_size = section_size
-    overlap = args.section_overlap
-    time_range = [section_idx*section_size, (section_idx+1)*section_size+overlap]
-    valid_compare_range = [section_idx*section_size, section_idx*section_size+overlap]
-    section_size = section_size + overlap
+    time_range = [section_idx*section_size, (section_idx+1)*section_size]
+    section_size = section_size
     
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
-                    time_range=time_range, duration = duration)
+                    time_range=time_range, duration = duration,prev_gaussians=prev_gaussians)
 
     print("Training section {}".format(section_idx))
 
@@ -216,20 +217,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
                     torchvision.utils.save_image(render_pkg["depth"]/50, os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
-
-                # Every few iterations show the model the previous section as gt
-                if harmonize and (iteration % 3 == 0) and (timeindex < opt.section_overlap):
-                    
-                    ratio = overlap/(og_size + overlap)
-                    custom_timestep = (1 - ratio) + viewpoint_cam.timestamp
-                    render_pkg_prev = render(viewpoint_cam, prev_gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer, custom_timestep=custom_timestep)
-                    
-                    if iteration% 1000 == 0:
-                        torchvision.utils.save_image(render_pkg_prev["render"], os.path.join("debug",  f"{iteration}_compare1.png"))
-                        torchvision.utils.save_image(image, os.path.join("debug",  f"{iteration}_compare2.png"))
-                    
-                    gt_image = render_pkg_prev["render"]
-                    gt_depth = render_pkg_prev["depth"]
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))
@@ -314,10 +301,12 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}, Nb loss: {nb_loss.item():.{7}f}"})
+                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}, Nb loss: {nb_loss.item():.{7}f}, Point count: {gaussians._xyz.shape[0]}"})
                 progress_bar.update(10)
             if iteration == iterations:
                 progress_bar.close()
+            if iteration % 500 == 0:
+                print(f"\n ITER {iteration} Training PSNR:  {psnr(image, gt_image).mean()}")
 
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving initial Gaussians".format(iteration))
@@ -334,7 +323,7 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
             
             
             # guided sampling step
-            if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100): #["camera_0002"] :#selectviews :  #["camera_0002"]:
+            if iteration > emsstartfromiterations and flagems == 2 and emscnt < selectedlength and viewpoint_cam.image_name in selectviews and (iteration - lasterems > 100) and section_idx==0: #["camera_0002"] :#selectviews :  #["camera_0002"]:
                 print("ems start")
                 selectviews.pop(viewpoint_cam.image_name) # remove sampled cameras
                 emscnt += 1

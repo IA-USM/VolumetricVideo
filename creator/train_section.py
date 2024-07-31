@@ -61,9 +61,11 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     gaussians.addsphpointsscale = opt.addsphpointsscale 
     gaussians.raystart = opt.raystart
     
-    harmonize = opt.harmonize and section_idx>0
+    opt.use_prev = True
 
-    if harmonize:
+    use_prev = opt.use_prev and section_idx>0
+
+    if use_prev:
         # Previous gaussians
         prev_gaussians = GaussianModel(dataset.sh_degree, rgbfunction)
         prev_gaussians.trbfslinit = -1*opt.trbfslinit # 
@@ -80,14 +82,11 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
     
     rbfbasefunction = trbfunction
 
-    og_size = section_size
-    overlap = args.section_overlap
-    time_range = [section_idx*section_size, (section_idx+1)*section_size+overlap]
-    valid_compare_range = [section_idx*section_size, section_idx*section_size+overlap]
-    section_size = section_size + overlap
+    time_range = [section_idx*section_size, (section_idx+1)*section_size]
+    section_size = section_size
     
     scene = Scene(dataset, gaussians, loader=dataset.loader, section_id= section_idx, 
-                    time_range=time_range, duration = duration)
+                    time_range=time_range, duration = duration, prev_gaussians=prev_gaussians)
 
     print("Training section {}".format(section_idx))
 
@@ -205,20 +204,6 @@ def train_section(dataset, opt, pipe, saving_iterations, debug_from, densify=0, 
                     torchvision.utils.save_image(gt_image, os.path.join("debug",  f"gt_{section_idx}_{iteration}.png"))                    
                     torchvision.utils.save_image(image, os.path.join("debug",  f"render_{section_idx}_{iteration}.png"))
                     torchvision.utils.save_image(render_pkg["depth"]/50, os.path.join("debug",  f"depth_{section_idx}_{iteration}.png"))
-
-                # Every few iterations show the model the previous section as gt
-                if harmonize and (iteration % 3 == 0) and (timeindex < opt.section_overlap):
-                    
-                    ratio = overlap/(og_size + overlap)
-                    custom_timestep = (1 - ratio) + viewpoint_cam.timestamp
-                    render_pkg_prev = render(viewpoint_cam, prev_gaussians, pipe, background,  override_color=None,  basicfunction=rbfbasefunction, GRsetting=GRsetting, GRzer=GRzer, custom_timestep=custom_timestep)
-                    
-                    if iteration% 1000 == 0:
-                        torchvision.utils.save_image(render_pkg_prev["render"], os.path.join("debug",  f"{iteration}_compare1.png"))
-                        torchvision.utils.save_image(image, os.path.join("debug",  f"{iteration}_compare2.png"))
-                    
-                    gt_image = render_pkg_prev["render"]
-                    gt_depth = render_pkg_prev["depth"]
                 
                 if iteration == 1:
                     torchvision.utils.save_image(image, os.path.join("debug",  f"{section_idx}_starting_point.png"))

@@ -29,11 +29,39 @@ max_thresholds = {
     "_colors": 7
 }
 
+# alternative: delete splats with norm rotation -> 0
+def normalize_swizzle_rotation(wxyz):
+    normalized = np.divide(wxyz,np.clip(np.linalg.norm(wxyz, axis=1).reshape(-1, 1), 1e-3, 1-1e-3))
+    normalized = np.roll(normalized, -1)
+    return normalized
+
+def pack_smallest_3_rotation(q):
+    abs_q = np.abs(q)
+    index = np.argmax(abs_q, axis=1)
+    n = q.shape[1]
+    rolled_indices = np.zeros((q.shape[0], n), dtype=np.int32)
+
+    rolled_indices[index == 0, :] = [1, 2, 3, 0]
+    rolled_indices[index == 1, :] = [0, 2, 3, 1]
+    rolled_indices[index == 2, :] = [0, 1, 3, 2]
+    rolled_indices[index == 3, :] = [0, 1, 2, 3]
+
+    q_rolled = q[np.arange(q.shape[0])[:, np.newaxis], rolled_indices]
+    signs = np.sign(q_rolled[:, 3])
+    three = q_rolled[:, :3] * signs[:, np.newaxis]
+    three = (three * np.sqrt(2)) * 0.5 + 0.5
+    index = index / 3.0
+
+    return np.column_stack((three, index))
+
 def to_numpy_img(tensor):
     grid_sidelen = int(tensor.shape[0] ** 0.5)
     attr_tensor = tensor.reshape((grid_sidelen, grid_sidelen, -1))
-    attr_numpy = attr_tensor.detach().cpu().numpy()
-    return attr_numpy
+    if (type(attr_tensor) == torch.Tensor):
+        attr_numpy = attr_tensor.detach().cpu().numpy()
+        return attr_numpy
+    return attr_tensor
+    
 
 def create_frame_image(pc, timestamp, xyz_min=-1, xyz_max=1):
     ##
@@ -69,26 +97,37 @@ def create_frame_image(pc, timestamp, xyz_min=-1, xyz_max=1):
     rotations = to_numpy_img(rotations_final)
     rotations = ((rotations - min_thresholds["_rotation"]) / (max_thresholds["_rotation"] - min_thresholds["_rotation"])).clip(0,1) * 65535
     rotations = rotations.astype(np.uint16)
+    q1q2, q3q4 = np.split(rotations, 2, axis=2)
+    last_q1q2 = q1q2[:, :, -1]
+    last_q3q4 = q3q4[:, :, -1]    
+    q1q2_1 = np.concatenate((q1q2, last_q1q2[:, :, np.newaxis]), axis=2)
+    q3q4_1 = np.concatenate((q3q4, last_q3q4[:, :, np.newaxis]), axis=2)
+    
+    # scales
+    scales = to_numpy_img(pc._scaling)
+    scales = ((scales - min_thresholds["_scaling"]) / (max_thresholds["_scaling"] - min_thresholds["_scaling"])).clip(0,1) * 65535
+    scales = scales.astype(np.uint16)
 
     # opacities
     opacities = to_numpy_img(opacities_final)
     opacities = ((opacities - min_thresholds["_opacity"]) / (max_thresholds["_opacity"] - min_thresholds["_opacity"])).clip(0,1) * 65535
     opacities = opacities.astype(np.uint16)
 
-    # scales
-    scales = to_numpy_img(pc._scaling)
-    scales = ((scales - min_thresholds["_scaling"]) / (max_thresholds["_scaling"] - min_thresholds["_scaling"])).clip(0,1) * 65535
-    scales = scales.astype(np.uint16)
+    
 
-    alpha_ones = np.ones((scales.shape[0], scales.shape[1], 1), dtype=np.uint16) * 65535
+    ones = np.ones((xyz.shape[0], xyz.shape[1], 1), dtype=np.uint16) * 65535
+    opacities_3 = np.concatenate((opacities, opacities, opacities), axis=2)
+    rot_part1 = q1q2_1
+    rot_part2 = q3q4_1
 
-    # join all
-    panel1 = np.concatenate((colors, opacities), axis=2)
-    panel2 = rotations
-    panel3 = np.concatenate((scales, alpha_ones), axis=2)
-    panel4 = np.concatenate((xyz, alpha_ones), axis=2)
+    panel1 = np.concatenate((xyz, colors, opacities_3), axis=1)
+    panel2 = np.concatenate((rot_part1, rot_part2, scales), axis=1)
+    frame_image = np.concatenate((panel1, panel2), axis=0)
 
-    return np.concatenate((panel1, panel2, panel3, panel4), axis=1)
+    if frame_image.shape[0] % 4 != 0:
+        frame_image = cv2.resize(frame_image, (frame_image.shape[1]//4*4, frame_image.shape[0]//4*4), interpolation=cv2.INTER_NEAREST)
+    
+    return frame_image
 
 
 if __name__ == "__main__":
@@ -157,6 +196,6 @@ if __name__ == "__main__":
         ffmpeg
         .input(os.path.join(outpath, "frame_%05d.png"), framerate=args.fps)
         .output(os.path.join(outpath ,"scene.mkv"), pix_fmt="yuv420p10le",
-                vcodec="libx265", preset="medium", crf=5, tune="grain")
+                vcodec="libx265", preset="medium", crf=5)
         .run()
     )
