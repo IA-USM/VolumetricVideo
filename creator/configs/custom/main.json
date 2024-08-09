@@ -4,14 +4,14 @@
 	"scaling_lr": 0.003,
 	"preprocesspoints": 2,
 	"densify": 2,
-	"densification_interval": 200,
+	"densification_interval": 1000,
 	"duration": 6,
-	"rdpip": "train_ours_lite_gsplat",
+	"rdpip": "train_ours_lite",
 	"section_size": 6,
 	"section_overlap": 0,
 	"densify_grad_threshold": 0.0002,
 	"max_init_points": 40000,
-	"section_iterations": 3000,
-	"iterations": 3000,
+	"section_iterations": 5000,
+	"iterations": 5000,
 	"desicnt": 2
 }

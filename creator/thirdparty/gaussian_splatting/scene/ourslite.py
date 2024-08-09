@@ -18,10 +18,20 @@ from utils.system_utils import mkdir_p
 from plyfile import PlyData, PlyElement
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
-from utils.general_utils import strip_symmetric, build_scaling_rotation, update_quaternion
+from utils.general_utils import strip_symmetric, build_scaling_rotation
 from helper_model import getcolormodel, interpolate_point, interpolate_partuse,interpolate_pointv3
 from scene.dataset_readers import storePly
-from helper_train import trbfunction
+
+from plas import sort_with_plas
+import kornia
+import torch.nn.functional as F
+
+def log_transform(x):
+    return torch.sign(x) * torch.log1p(torch.abs(x))
+
+def inverse_log_transform(y):
+    assert y.max() < 20, "Probably mixed up linear and log values for xyz. These going in here are supposed to be quite small (log scale)"
+    return torch.sign(y) * (torch.expm1(torch.abs(y)))
 
 class GaussianModel:
 
@@ -41,11 +51,20 @@ class GaussianModel:
         self.inverse_opacity_activation = inverse_sigmoid
 
         self.rotation_activation = torch.nn.functional.normalize
+
+        if self.disable_xyz_log_activation:
+            self.xyz_activation = lambda x: x
+            self.inverse_xyz_activation = lambda x: x
+        else:
+            self.xyz_activation = inverse_log_transform
+            self.inverse_xyz_activation = log_transform
+        
         #self.featureact = torch.sigmoid
 
 
-    def __init__(self, sh_degree : int, rgbfuntion="rgbv1"):
+    def __init__(self, sh_degree : int, rgbfuntion="rgbv1", disable_xyz_log_activation=True):
         self.active_sh_degree = 0
+        self.disable_xyz_log_activation = disable_xyz_log_activation
         self.max_sh_degree = sh_degree  
         self._xyz = torch.empty(0)
         self._features_dc = torch.empty(0)
@@ -128,21 +147,40 @@ class GaussianModel:
         self.delta_t = delta_t
         return self.rotation_activation(rotation)
 
+    def get_rotation_raw(self, delta_t):
+        return  self._rotation + delta_t * self._omega
 
     @property
     def get_xyz(self):
-        return self._xyz
+        return self.xyz_activation(self._xyz)
+    
     @property
     def get_trbfcenter(self):
         return self._trbf_center
     @property
     def get_trbfscale(self):
         return self._trbf_scale
+    
     def get_features(self, deltat):
         return self._features_dc
+    
+    @property
+    def get_features_dc(self):
+        return self._features_dc
+    
     @property
     def get_opacity(self):
         return self.opacity_activation(self._opacity)
+
+    def get_attr_flat(self, attr_name):
+        attr = getattr(self, f"_{attr_name}")
+        return attr.flatten(start_dim=1)
+
+    def get_activated_attr_flat(self, attr_name):
+        getter_method = f"get_{attr_name}"
+        attr = getattr(self, getter_method)
+        return attr.flatten(start_dim=1)
+
     
     def get_covariance(self, scaling_modifier = 1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
@@ -276,7 +314,7 @@ class GaussianModel:
 
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
-        self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        self._xyz = nn.Parameter(self.inverse_xyz_activation(fused_point_cloud.requires_grad_(True)))
 
         features9channel = fused_color
 
@@ -438,7 +476,7 @@ class GaussianModel:
     def save_ply_standard(self, path):
         mkdir_p(os.path.dirname(path))
 
-        xyz = self._xyz.detach().cpu().numpy()
+        xyz = self.get_xyz.detach().cpu().numpy()
         normals = np.zeros_like(xyz)
         f_dc = self._features_dc.detach().cpu().numpy()
         #f_rest = self._features_rest.detach().cpu().numpy()
@@ -935,6 +973,50 @@ class GaussianModel:
 
 
         self.active_sh_degree = self.max_sh_degree
+    
+    def create_from_prev_gaussians(self, prev_gaussians, duration=10):
+
+        # Create from the last recorded positions
+        pointtimes = torch.ones((prev_gaussians.get_xyz.shape[0],1), dtype=prev_gaussians.get_xyz.dtype, requires_grad=False, device="cuda") + 0
+        trbfcenter = prev_gaussians.get_trbfcenter
+        means3D = prev_gaussians.get_xyz
+        trbfdistanceoffset = (duration-1)/duration * pointtimes - trbfcenter
+        tforpoly = trbfdistanceoffset.detach()
+        #total_motion = prev_gaussians._motion[:, 0:3] * tforpoly + prev_gaussians._motion[:, 3:6] * tforpoly * tforpoly + prev_gaussians._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+        last_xyz = means3D + prev_gaussians._motion[:, 0:3] * tforpoly + prev_gaussians._motion[:, 3:6] * tforpoly * tforpoly + prev_gaussians._motion[:, 6:9] * tforpoly *tforpoly * tforpoly
+        
+        max_points = 70_000
+        if last_xyz.shape[0] > max_points:
+            rand_indices = torch.randperm(last_xyz.shape[0])[:max_points]
+            last_xyz = last_xyz[rand_indices]
+            prev_gaussians._features_dc = prev_gaussians._features_dc[rand_indices]
+            prev_gaussians._opacity = prev_gaussians._opacity[rand_indices]
+            prev_gaussians._scaling = prev_gaussians._scaling[rand_indices]
+            prev_gaussians._rotation = prev_gaussians._rotation[rand_indices]
+            prev_gaussians._trbf_center = prev_gaussians._trbf_center[rand_indices]
+            prev_gaussians._trbf_scale = prev_gaussians._trbf_scale[rand_indices]
+            prev_gaussians._motion = prev_gaussians._opacity[rand_indices]
+            prev_gaussians._omega = prev_gaussians._omega[rand_indices]
+        
+        self._xyz = last_xyz.detach().clone().requires_grad_(True)
+        self._features_dc = prev_gaussians._features_dc.detach().clone().requires_grad_(True)
+        self._opacity = prev_gaussians._opacity.detach().clone().requires_grad_(True)
+        self._scaling = prev_gaussians._scaling.detach().clone().requires_grad_(True)
+        self._rotation = prev_gaussians._rotation.detach().clone().requires_grad_(True)
+        self._trbf_center = prev_gaussians._trbf_center.detach().clone().requires_grad_(True)
+        self._trbf_scale = prev_gaussians._trbf_scale.detach().clone().requires_grad_(True)
+        self._motion = prev_gaussians._motion.detach().clone().requires_grad_(True)
+        self._omega = prev_gaussians._omega.detach().clone().requires_grad_(True)
+
+        self.active_sh_degree = self.max_sh_degree
+        self.computedtrbfscale = torch.exp(self._trbf_scale) # precomputed
+        self.computedopacity =self.opacity_activation(self._opacity)
+        self.computedscales = torch.exp(self._scaling) # change not very large
+
+        self.max_radii2D = torch.zeros((self._xyz.shape[0]), device="cuda")
+
+    
+
     def load_ply(self, path):
         plydata = PlyData.read(path)
         #ckpt = torch.load(path.replace(".ply", ".pt"))
@@ -944,8 +1026,6 @@ class GaussianModel:
                         np.asarray(plydata.elements[0]["y"]),
                         np.asarray(plydata.elements[0]["z"])),  axis=1)
         opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
-            #         {'params': [self._trbf_center], 'lr': training_args.trbfc_lr, "name": "trbf_center"},
-            # {'params': [self._trbf_scale], 'lr': training_args.trbfs_lr, "name": "trbf_scale"},
         trbf_center= np.asarray(plydata.elements[0]["trbf_center"])[..., np.newaxis]
         trbf_scale = np.asarray(plydata.elements[0]["trbf_scale"])[..., np.newaxis]
 
@@ -1162,7 +1242,7 @@ class GaussianModel:
         means =torch.zeros((stds.size(0), 3),device="cuda")
         samples = torch.normal(mean=means, std=stds)
         rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N,1,1)
-        new_xyz = torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+        new_xyz = self.inverse_xyz_activation(torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1))
         new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N,1) / (0.8*N))
         new_rotation = self._rotation[selected_pts_mask].repeat(N,1)
         new_features_dc = self._features_dc[selected_pts_mask].repeat(N,1) # n,1,1 to n1
@@ -1192,7 +1272,7 @@ class GaussianModel:
         samples = torch.normal(mean=means, std=stds)
         rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N,1,1)
         numpytmp = rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy() # numpy better than cublas..., cublas use stohastic for bmm 
-        new_xyz =torch.from_numpy(numpytmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+        new_xyz =self.inverse_xyz_activation(torch.from_numpy(numpytmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1))
         new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N,1) / (0.8*N))
         new_rotation = self._rotation[selected_pts_mask].repeat(N,1)
         new_features_dc = self._features_dc[selected_pts_mask].repeat(N,1) # n,1,1 to n1
@@ -1219,7 +1299,7 @@ class GaussianModel:
         samples = torch.normal(mean=means, std=stds)
         rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N,1,1)
         numpytmp = rots.cpu().numpy() @ samples.unsqueeze(-1).cpu().numpy() # numpy better than cublas..., cublas use stohastic for bmm 
-        new_xyz =torch.from_numpy(numpytmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+        new_xyz =self.inverse_xyz_activation(torch.from_numpy(numpytmp).cuda().squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1))
 
         new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N,1) / (0.8*N))
         new_rotation = self._rotation[selected_pts_mask].repeat(N,1)
@@ -1507,3 +1587,168 @@ class GaussianModel:
 
         optimizable_tensors = self.replace_tensor_to_optimizer(opacityold, "opacity")
         self._opacity = optimizable_tensors["opacity"]
+
+
+    # -- SSGS implementation --
+
+    def prune_all_but_these_indices(self, indices):
+
+        if self.optimizer is not None:
+
+            optimizable_tensors = self._prune_optimizer(indices)
+
+            self._xyz = optimizable_tensors["xyz"]
+            self._features_dc = optimizable_tensors["f_dc"]
+            self._opacity = optimizable_tensors["opacity"]
+            self._scaling = optimizable_tensors["scaling"]
+            self._rotation = optimizable_tensors["rotation"]
+            self._trbf_center = optimizable_tensors["trbf_center"]
+            self._trbf_scale = optimizable_tensors["trbf_scale"]
+            self._motion = optimizable_tensors["motion"]
+            self._omega = optimizable_tensors["omega"]
+
+            self.xyz_gradient_accum = self.xyz_gradient_accum[indices]
+            self.denom = self.denom[indices]
+            self.max_radii2D = self.max_radii2D[indices]
+        else:
+            self._xyz = self._xyz[indices]
+            self._features_dc = self._features_dc[indices]
+            self._opacity = self._opacity[indices]
+            self._scaling = self._scaling[indices]
+            self._rotation = self._rotation[indices]
+            self._trbf_center = self._trbf_center[indices]
+            self._trbf_scale = self._trbf_scale[indices]
+            self._motion = self._motion[indices]
+            self._omega = self._omega[indices]
+
+
+    def prune_to_square_shape(self, sort_by_opacity=True, verbose=True):
+        num_gaussians = self._xyz.shape[0]
+
+        self.grid_sidelen = int(np.sqrt(num_gaussians))
+        num_removed = num_gaussians - self.grid_sidelen * self.grid_sidelen
+
+        if verbose:
+            print(f"Removing {num_removed}/{num_gaussians} gaussians to fit the grid. ({100 * num_removed / num_gaussians:.4f}%)")
+        if self.grid_sidelen * self.grid_sidelen < num_gaussians:
+            if sort_by_opacity:
+                alpha = self.get_opacity[:, 0]
+                _, keep_indices = torch.topk(alpha, k=self.grid_sidelen * self.grid_sidelen)
+            else:
+                shuffled_indices = torch.randperm(num_gaussians)
+                keep_indices = shuffled_indices[:self.grid_sidelen * self.grid_sidelen]
+            sorted_keep_indices = torch.sort(keep_indices)[0]
+            self.prune_all_but_these_indices(sorted_keep_indices)
+
+    @staticmethod
+    def normalize(tensor):
+        tensor = tensor - tensor.mean()
+        if tensor.std() > 0:
+            tensor = tensor / tensor.std()
+        return tensor
+
+        
+    def sort_into_grid(self, args, verbose):
+
+        normalization_fn = self.normalize if args.sorting_normalize else lambda x: x
+        attr_getter_fn = self.get_activated_attr_flat if args.sorting_enabled else self.get_attr_flat
+
+        params_to_sort = []
+
+        #for attr_name, attr_weight in sorting_cfg.weights.items():
+        if args.xyz_weight > 0:
+            params_to_sort.append(normalization_fn(attr_getter_fn("xyz")) * args.xyz_weight)
+        if args.features_dc_weight > 0:
+            params_to_sort.append(normalization_fn(attr_getter_fn("features_dc")) * args.features_dc_weight)
+        if args.opacity_weight > 0:
+            params_to_sort.append(normalization_fn(attr_getter_fn("opacity")) * args.opacity_weight)
+        if args.scaling_weight > 0:
+            params_to_sort.append(normalization_fn(attr_getter_fn("scaling")) * args.scaling_weight)
+        if args.rotation_weight > 0:
+            params_to_sort.append(normalization_fn(attr_getter_fn("rotation")) * args.rotation_weight)
+
+        params_to_sort = torch.cat(params_to_sort, dim=1)
+
+        if args.shuffle_sort:
+            shuffled_indices = torch.randperm(params_to_sort.shape[0], device=params_to_sort.device)
+            params_to_sort = params_to_sort[shuffled_indices]
+
+        grid_to_sort = self.as_grid_img(params_to_sort).permute(2, 0, 1)
+        _, sorted_indices = sort_with_plas(grid_to_sort, improvement_break=args.improvement_break, verbose=verbose)
+
+        sorted_indices = sorted_indices.squeeze().flatten()
+
+        if args.shuffle_sort:
+            sorted_indices = shuffled_indices[sorted_indices]
+
+        self.prune_all_but_these_indices(sorted_indices)
+
+    def as_grid_img(self, tensor):
+        if not hasattr(self, "grid_sidelen"):
+            raise "Gaussians not pruned yet!"
+
+        if self.grid_sidelen * self.grid_sidelen != tensor.shape[0]:
+            raise "Tensor shape does not match img sidelen, needs pruning?"
+
+        img = tensor.reshape((self.grid_sidelen, self.grid_sidelen, -1))
+        return img
+
+    def attr_as_grid_img(self, attr_name):
+        tensor = getattr(self, attr_name)
+        return self.as_grid_img(tensor)
+
+    def set_attr_from_grid_img(self, attr_name, img):
+
+        if self.optimizer is not None:
+            raise "Overwriting Gaussians during training not implemented yet! - Consider pruning method implementations"
+
+        attr_shapes = {
+            "_xyz": (3,),
+            "_features_dc": (1, 3),
+            "_rotation": (4,),
+            "_scaling": (3,),
+            "_opacity": (1,),
+            "_trbf_center": (1,),
+            "_trbf_scale": (1,),
+            "_motion": (9,),
+            "_omega": (4,),
+        }
+
+        target_shape = attr_shapes[attr_name]
+        img_shaped = img.reshape(-1, *target_shape)
+        tensor = torch.tensor(img_shaped, dtype=torch.float, device="cuda")
+
+        setattr(self, attr_name, tensor)
+
+    def neighborloss_2d(self, tensor, args, squeeze_dim=None):
+        if args.neighbor_normalize:
+            tensor = self.normalize(tensor)
+
+        if squeeze_dim:
+            tensor = tensor.squeeze(squeeze_dim)
+
+        img = self.as_grid_img(tensor)
+        img = img.permute(2, 0, 1).unsqueeze(0)
+
+        blurred_x = kornia.filters.gaussian_blur2d(
+            img.detach(),
+            kernel_size=(1, args.neighbor_blur_kernel_size),
+            sigma=(args.neighbor_blur_sigma, args.neighbor_blur_sigma),
+            border_type="circular",
+        )
+
+        blurred_xy = kornia.filters.gaussian_blur2d(
+            blurred_x,
+            kernel_size=(args.neighbor_blur_kernel_size, 1),
+            sigma=(args.neighbor_blur_sigma, args.neighbor_blur_sigma),
+            border_type="reflect",
+        )
+
+        if args.neighbor_loss_fn == "mse":
+            loss = F.mse_loss(blurred_xy, img)
+        elif args.neighbor_loss_fn == "huber":
+            loss = F.huber_loss(blurred_xy, img)
+        else:
+            assert False, "Unknown loss function"
+
+        return loss

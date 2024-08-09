@@ -29,9 +29,6 @@ import time
 from scene.oursfull import GaussianModel
 from utils.sh_utils import eval_sh
 from utils.graphics_utils import getProjectionMatrixCV, focal2fov, fov2focal
-from gsplat import rasterization
-
-
 
 
 def train_ours_full(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, basicfunction = None, GRsetting=None, GRzer=None):

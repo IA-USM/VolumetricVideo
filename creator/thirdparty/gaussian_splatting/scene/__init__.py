@@ -24,6 +24,7 @@ from scene.colmap_loader import read_points3D_binary
 from utils.graphics_utils import BasicPointCloud
 import numpy as np
 
+
 import sys
 # Append the parent of the parent directory
 #sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,7 +33,8 @@ import sys
 class Scene:
     # gaussians : GaussianModel
     def __init__(self, args : ModelParams, gaussians, load_iteration=None, shuffle=True, 
-                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap"):
+                 resolution_scales=[1.0], multiview=False, time_range=None, duration = 50, section_id=0, loader="colmap",
+                 prev_gaussians=None):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -163,18 +165,9 @@ class Scene:
                                                            "point_cloud",
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
-        elif section_id > 0:
-            starttime = os.path.basename(args.source_path).split("_")[1]
-            starttime = int(starttime)
-
-            prev_pcd_path = os.path.join(os.path.dirname(self.model_path), "points", f"section_{section_id-1}.ply")
-            
-            point_cloud_current = self.create_pcd_from_bins(args.source_path, starttime, time_range)
-            point_cloud_previous = fetchPly(prev_pcd_path)
-
-            point_cloud = self.mix_point_clouds(point_cloud_current, point_cloud_previous, blend= 0.5, total_points=args.max_init_points)
-
-            self.gaussians.create_from_pcd(point_cloud, self.cameras_extent)
+        elif section_id > 0 and prev_gaussians != None:
+            print("Creating new gaussians from previous gaussians")
+            self.gaussians.create_from_prev_gaussians(prev_gaussians, duration)
         else:
             self.gaussians.create_from_pcd(self.point_cloud, self.cameras_extent)
 

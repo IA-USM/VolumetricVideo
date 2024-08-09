@@ -62,6 +62,18 @@ class ModelParams(ParamGroup):
         self.load2gpu_on_the_fly = False
         self.depth_regularization = False
 
+        # SOGS
+        self.sorting_enabled = True
+        self.sorting_normalize = True
+        self.xyz_weight = 1.0
+        self.features_dc_weight = 1.0
+        self.features_rest_weight = 0.0
+        self.opacity_weight = 0.0
+        self.scaling_weight = 1.0
+        self.rotation_weight = 0.0
+        self.shuffle_sort = True # Default: True
+        self.improvement_break = 0.0001
+
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -135,6 +147,21 @@ class OptimizationParams(ParamGroup):
         self.section_overlap = 0
         self.section_iterations = 5000
         self.harmonize= True
+        
+        # SOGS
+        self.disable_xyz_log_activation = True
+        self.lambda_neighbor = 1.0
+        self.neighbor_loss_activated = False
+        self.xyz_neighbor_weight = 0.0
+        self.features_dc_neighbor_weight = 0.0
+        self.opacity_neighbor_weight = 1.0
+        self.scaling_neighbor_weight = 0.0
+        self.rotation_neighbor_weight = 10.0
+        self.neighbor_normalize = False
+        self.neighbor_blur_kernel_size = 5
+        self.neighbor_blur_sigma = 3.0
+        self.neighbor_loss_fn = "huber"
+
 
         super().__init__(parser, "Optimization Parameters")
 

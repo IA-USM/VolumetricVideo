@@ -39,6 +39,7 @@ def getparser():
     parser.add_argument('--debug_from', type=int, default=-2)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 10000, 12000, 25_000, 30_000])
+    parser.add_argument("--compression_iterations", nargs="+", type=int, default=[7_000, 10000, 12000, 25_000, 30_000])
     parser.add_argument("--test_iterations", default=-1, type=int)
 
     parser.add_argument("--quiet", action="store_true")
@@ -50,6 +51,7 @@ def getparser():
     parser.add_argument("--rgbfunction", type=str, default = "rgbv1")
     parser.add_argument("--rdpip", type=str, default = "v2")
     parser.add_argument("--configpath", type=str, default = "None")
+    parser.add_argument("--compression_config_path", type=str, default = "configs/custom/compression.yaml")
     parser.add_argument("--section_idx", type=int, default = 0)
 
     args = parser.parse_args(sys.argv[1:])
